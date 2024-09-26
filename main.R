@@ -37,6 +37,34 @@ dupl # No duplicates (good)
 na.count <- expenditures.data[, lapply(.SD, function(x) sum(is.na(x)))] # No NA values are observed (good)
 
 # 3)
+# Histograms for each categorie
+num_cols <- ncol(expenditures.data[, -1])
+par(mfrow = c(ceiling(num_cols/4), 4)) 
+
+# Looping through each column and plotting a histogram
+for (col in colnames(expenditures.data[, -1])) {
+  hist(expenditures.data[[col]], 
+       main = paste("Histogram of", col), 
+       xlab = col, 
+       col = "lightblue", 
+       border = "black")
+}
+
+# Resetting to default plotting layout
+par(mfrow = c(1, 1))
+
+# 4)
+# Box plots for each categorie
+for (col in colnames(expenditures.data[, -1])) {
+  # Store the box plot for each category in the list
+  boxplot(expenditures.data[[col]], 
+          main = paste("Boxplot of", col),
+          xlab = col, 
+          col="lightblue", 
+          border="black")
+}
+
+
 
 
 
