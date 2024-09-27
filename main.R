@@ -14,6 +14,9 @@ for (pkg_name in package.names) {
   }
 }
 
+# Sourcing functions file
+source("functions.R")
+
 rm(pkg_name, package.names)
 #-------------------------------------------------------------------------------
 # Loading data
