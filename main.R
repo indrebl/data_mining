@@ -28,8 +28,6 @@ expenditures.data.expl <- data.table(read_excel("Data/Consumption_expenditures_e
 individual.data.expl <- data.table(read_excel("Data/Individual_data_expl.xlsx"))
 
 # Modifications
-
-# Variable names to lower case
 individual.data.expl$`Kintamojo pavadinimas` <- tolower(individual.data.expl$`Kintamojo pavadinimas`)
 
 expenditures.data.expl$`Kintamojo aprašymas` <- gsub(" ", "_", expenditures.data.expl$`Kintamojo aprašymas`)
@@ -90,27 +88,26 @@ na.count # No NA values are observed (good)
 
 # 3)
 # Histograms for each categorie
-num_cols <- ncol(expenditures.data[, -1])
-par(mfrow = c(ceiling(num_cols/4), 4)) 
+par(mar = c(2, 2, 2, 2)) 
+par(mfrow = c(3, 5))
 
-# Looping through each column and plotting a histogram
 for (col in colnames(expenditures.data[, -1])) {
   hist(expenditures.data[[col]], 
-       main = paste("Histogram of", col), 
+       main = col, 
        xlab = col, 
        col = "lightblue", 
        border = "black")
 }
 
-# Resetting to default plotting layout
-par(mfrow = c(1, 1))
-
 # 4)
 # Box plots for each categorie
+par(mar = c(2, 2, 2, 2)) 
+par(mfrow = c(3, 5))
+
 for (col in colnames(expenditures.data[, -1])) {
   # Store the box plot for each category in the list
   boxplot(expenditures.data[[col]], 
-          main = paste("Boxplot of", col),
+          main = col,
           xlab = col, 
           col="lightblue", 
           border="black")
@@ -120,15 +117,29 @@ for (col in colnames(expenditures.data[, -1])) {
 # However, there are a lot of outliers (households that have unusually high expenditures)
 
 # 5)
-# Summary statistics for each categorie
+# Summary statistics for each categorie nad total expenditures
 summ.stats <- data.table(summary(expenditures.data[, -1]))
 
 # 6)
-# Correlation between catagories
-cor.result <- cor(expenditures.data[, -1, with = FALSE], use = "complete.obs")
+# Correlation between categories
+cor.result <- cor(expenditures.data[, -2:-1, with = FALSE], use = "complete.obs")
 
+# 7)
+# Proportions of expenses
+for (col in colnames(expenditures.data)[3:ncol(expenditures.data)]) {
+  expenditures.data[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
+}
 
+par(mar = c(2, 2, 2, 2)) 
+par(mfrow = c(3, 5))
 
+for (col in colnames(expenditures.data[, 16:ncol(expenditures.data)])) {
+  hist(expenditures.data[[col]], 
+       main = col, 
+       xlab = col, 
+       col = "lightblue", 
+       border = "black")
+}
 
 
 
