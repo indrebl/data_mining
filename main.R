@@ -59,7 +59,7 @@ setnames(expenditures.data, colnames.expl$Var_name, colnames.expl$Var_expl)
 # Checking whether we have explanations for all columns
 setdiff(colnames(individual.data), individual.data.expl1$Var_name) # No differences, meaning we have all necessary variable names (object id is just observation number)
 
-# Changing row values 
+# Changing observations values 
 for (var in unique(individual.data.expl2$Var_name)) {
   expl_subset <- individual.data.expl2[Var_name == var]
   case_when_logic <- create_case_when(expl_subset, var)
@@ -91,7 +91,7 @@ na.count # No NA values are observed (good)
 par(mar = c(2, 2, 2, 2)) 
 par(mfrow = c(3, 5))
 
-for (col in colnames(expenditures.data[, -1])) {
+for (col in colnames(expenditures.data[, -c("hh_ident")])) {
   hist(expenditures.data[[col]], 
        main = col, 
        xlab = col, 
@@ -104,7 +104,7 @@ for (col in colnames(expenditures.data[, -1])) {
 par(mar = c(2, 2, 2, 2)) 
 par(mfrow = c(3, 5))
 
-for (col in colnames(expenditures.data[, -1])) {
+for (col in colnames(expenditures.data[, -c("hh_ident")])) {
   # Store the box plot for each category in the list
   boxplot(expenditures.data[[col]], 
           main = col,
@@ -118,29 +118,29 @@ for (col in colnames(expenditures.data[, -1])) {
 
 # 5)
 # Summary statistics for each categorie nad total expenditures
-summ.stats <- data.table(summary(expenditures.data[, -1]))
+summ.stats <- data.table(summary(expenditures.data[, -c("hh_ident")]))
 
 # 6)
 # Correlation between categories
-cor.result <- cor(expenditures.data[, -2:-1, with = FALSE], use = "complete.obs")
+cor.result <- cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)"), with = FALSE], use = "complete.obs")
 
 # 7)
 # Proportions of expenses
-for (col in colnames(expenditures.data)[3:ncol(expenditures.data)]) {
+for (col in colnames(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")])) {
   expenditures.data[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
 }
 
 par(mar = c(2, 2, 2, 2)) 
 par(mfrow = c(3, 5))
 
-for (col in colnames(expenditures.data[, 16:ncol(expenditures.data)])) {
+prop.col.names <- grep("prop$", colnames(expenditures.data), value = TRUE)
+for (col in prop.col.names) {
   hist(expenditures.data[[col]], 
        main = col, 
        xlab = col, 
        col = "lightblue", 
        border = "black")
 }
-
 
 
  
