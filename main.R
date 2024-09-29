@@ -142,6 +142,42 @@ for (col in prop.col.names) {
        border = "black")
 }
 
-
+# 8)
+# Grouping households based on their spending habits
+set.seed(123)
+k <- 2  # 2 clusters selected
+# scale function standardizes data (mean is 0, st dev is 1)
+kmeans.res <- kmeans(scale(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), centers = k)
+expenditures.data.clust <- copy(expenditures.data)
+expenditures.data.clust[, cluster := kmeans.res$cluster]
  
+# Visualizing clusters
+pca.result <- prcomp(scale(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), center = TRUE, scale. = TRUE)
+# Extracting first two principal components
+pca.data <- data.frame(PC1 = pca.result$x[, 1], PC2 = pca.result$x[, 2])
+# Adding cluster information
+pca.data$cluster <- factor(expenditures.data.clust$cluster)
+
+colors <- c("red", "blue")
+cluster.colors <- colors[as.numeric(pca.data$cluster)]
+
+par(mfrow = c(1, 1))
+plot(pca.data$PC1, pca.data$PC2, 
+     col = cluster.colors, 
+     pch = 19, 
+     xlab = "Principal Component 1", 
+     ylab = "Principal Component 2", 
+     main = "K-Means Clustering of Households (3 Clusters)")
+
+legend("topright", legend = levels(pca.data$cluster), 
+       col = colors, pch = 19, title = "Cluster")
+
+
+
+
+
+
+
+
+
 
