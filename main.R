@@ -96,11 +96,29 @@ for (col in colnames(expenditures.data[, -c("hh_ident")])) {
        main = col, 
        xlab = col, 
        col = "lightblue", 
-       border = "black")
+       border = "black",
+       cex.main = 0.8)
 }
 
+
+selected_cols <- colnames(expenditures.data)[!colnames(expenditures.data) %in% "hh_ident"][1:14]
+
+zero_counts <- expenditures.data[, lapply(.SD, function(x) sum(x == 0)), .SDcols = selected_cols]
+
+# Calculate total counts for the first 15 columns
+total_counts <- nrow(expenditures.data)
+
+# Convert zero counts to a data frame
+zero_counts_df <- data.frame(Category = names(zero_counts), 
+                             Zero_Counts = unlist(zero_counts)
+)
+
+# Calculate percentage of zero values
+zero_counts_df$Percentage_Zeros <- (zero_counts_df$Zero_Counts / total_counts) * 100
+print(zero_counts_df)
+
 # 4)
-# Box plots for each categorie
+# Box plots for each category
 par(mar = c(2, 2, 2, 2)) 
 par(mfrow = c(3, 5))
 
@@ -110,7 +128,8 @@ for (col in colnames(expenditures.data[, -c("hh_ident")])) {
           main = col,
           xlab = col, 
           col="lightblue", 
-          border="black")
+          border="black",
+          cex.main = 0.8)
 }
 
 # For most categories, expenditures are concentrated in a lower range.
@@ -139,7 +158,8 @@ for (col in prop.col.names) {
        main = col, 
        xlab = col, 
        col = "lightblue", 
-       border = "black")
+       border = "black",
+       cex.main = 0.8)
 }
 
 # 8)
