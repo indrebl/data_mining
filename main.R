@@ -178,7 +178,7 @@ pca.data <- data.frame(PC1 = pca.result$x[, 1], PC2 = pca.result$x[, 2])
 # Adding cluster information
 pca.data$cluster <- factor(expenditures.data.clust$cluster)
 
-colors <- c("red", "blue")
+colors <- c("firebrick1", "cornflowerblue","darkolivegreen2", "darkblue", "seagreen4")
 cluster.colors <- colors[as.numeric(pca.data$cluster)]
 
 par(mfrow = c(1, 1))
