@@ -60,12 +60,14 @@ setnames(expenditures.data, colnames.expl$Var_name, colnames.expl$Var_expl)
 setdiff(colnames(individual.data), individual.data.expl1$Var_name) # No differences, meaning we have all necessary variable names (object id is just observation number)
 
 # Changing observations values 
-for (var in unique(individual.data.expl2$Var_name)) {
-  expl_subset <- individual.data.expl2[Var_name == var]
-  case_when_logic <- create_case_when(expl_subset, var)
-  individual.data <- individual.data %>%
-    mutate(!!var := eval(parse(text = case_when_logic)))
-}
+# Don't change, keep for factors
+
+# for (var in unique(individual.data.expl2$Var_name)) {
+#   expl_subset <- individual.data.expl2[Var_name == var]
+#   case_when_logic <- create_case_when(expl_subset, var)
+#   individual.data <- individual.data %>%
+#     mutate(!!var := eval(parse(text = case_when_logic)))
+# }
 
 col.names.old <- colnames(individual.data)
 colnames.expl <- individual.data.expl1[Var_name %in% col.names.old]
@@ -117,6 +119,14 @@ zero_counts_df <- data.frame(Category = names(zero_counts),
 zero_counts_df$Percentage_Zeros <- (zero_counts_df$Zero_Counts / total_counts) * 100
 print(zero_counts_df)
 
+#=======================
+# Near zero-variance. According to this, Svietimo paslaugos could be removed due to near zero variance
+library(caret)
+nzv = nearZeroVar(expenditures.data[, -1], saveMetrics = TRUE)
+nzv
+
+#=======================#=======================TRUE
+
 # 4)
 # Box plots for each category
 par(mar = c(2, 2, 2, 2)) 
@@ -142,25 +152,28 @@ summ.stats <- data.table(summary(expenditures.data[, -c("hh_ident")]))
 # 6)
 # Correlation between categories
 cor.result <- cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)"), with = FALSE], use = "complete.obs")
+# Checking correlation - there's no multicollinearity exceeding 50%.
+findCorrelation(cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), cutoff = .5)
 
 # 7)
 # Proportions of expenses
-for (col in colnames(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")])) {
-  expenditures.data[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
-}
-
-par(mar = c(2, 2, 2, 2)) 
-par(mfrow = c(3, 5))
-
-prop.col.names <- grep("prop$", colnames(expenditures.data), value = TRUE)
-for (col in prop.col.names) {
-  hist(expenditures.data[[col]], 
-       main = col, 
-       xlab = col, 
-       col = "lightblue", 
-       border = "black",
-       cex.main = 0.8)
-}
+# for (col in colnames(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")])) {
+#   expenditures.data[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
+# }
+# 
+# par(mar = c(2, 2, 2, 2)) 
+# par(mfrow = c(3, 5))
+# 
+# prop.col.names <- grep("prop$", colnames(expenditures.data), value = TRUE)
+# for (col in prop.col.names) {
+#   hist(expenditures.data[[col]], 
+#        main = col, 
+#        xlab = col, 
+#        col = "lightblue", 
+#        border = "black",
+#        cex.main = 0.8)
+# }
+#### Why is it changed to proportions? Looks like a mistake
 
 # 8)
 # Grouping households based on their spending habits
