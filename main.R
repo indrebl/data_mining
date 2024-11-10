@@ -60,12 +60,14 @@ setnames(expenditures.data, colnames.expl$Var_name, colnames.expl$Var_expl)
 setdiff(colnames(individual.data), individual.data.expl1$Var_name) # No differences, meaning we have all necessary variable names (object id is just observation number)
 
 # Changing observations values 
-for (var in unique(individual.data.expl2$Var_name)) {
-  expl_subset <- individual.data.expl2[Var_name == var]
-  case_when_logic <- create_case_when(expl_subset, var)
-  individual.data <- individual.data %>%
-    mutate(!!var := eval(parse(text = case_when_logic)))
-}
+# Don't change, keep for factors
+
+# for (var in unique(individual.data.expl2$Var_name)) {
+#   expl_subset <- individual.data.expl2[Var_name == var]
+#   case_when_logic <- create_case_when(expl_subset, var)
+#   individual.data <- individual.data %>%
+#     mutate(!!var := eval(parse(text = case_when_logic)))
+# }
 
 col.names.old <- colnames(individual.data)
 colnames.expl <- individual.data.expl1[Var_name %in% col.names.old]
@@ -117,6 +119,14 @@ zero_counts_df <- data.frame(Category = names(zero_counts),
 zero_counts_df$Percentage_Zeros <- (zero_counts_df$Zero_Counts / total_counts) * 100
 print(zero_counts_df)
 
+#=======================
+# Near zero-variance. According to this, Svietimo paslaugos could be removed due to near zero variance
+library(caret)
+nzv = nearZeroVar(expenditures.data[, -1], saveMetrics = TRUE)
+nzv
+
+#==============================================
+
 # 4)
 # Box plots for each category
 par(mar = c(2, 2, 2, 2)) 
@@ -142,22 +152,26 @@ summ.stats <- data.table(summary(expenditures.data[, -c("hh_ident")]))
 # 6)
 # Correlation between categories
 cor.result <- cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)"), with = FALSE], use = "complete.obs")
+# Checking correlation - there's no multicollinearity exceeding 50%.
+findCorrelation(cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), cutoff = .5)
 
 # 7)
+expenditures.prop = copy(expenditures.data)
+summary(expenditures.data)
 # Proportions of expenses
-for (col in colnames(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")])) {
-  expenditures.data[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
+for (col in colnames(expenditures.prop[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")])) {
+  expenditures.prop[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
 }
 
-par(mar = c(2, 2, 2, 2)) 
+par(mar = c(2, 2, 2, 2))
 par(mfrow = c(3, 5))
 
-prop.col.names <- grep("prop$", colnames(expenditures.data), value = TRUE)
+prop.col.names <- grep("prop$", colnames(expenditures.prop), value = TRUE)
 for (col in prop.col.names) {
-  hist(expenditures.data[[col]], 
-       main = col, 
-       xlab = col, 
-       col = "lightblue", 
+  hist(expenditures.prop[[col]],
+       main = col,
+       xlab = col,
+       col = "lightblue",
        border = "black",
        cex.main = 0.8)
 }
@@ -193,6 +207,100 @@ legend("topright", legend = levels(pca.data$cluster),
        col = colors, pch = 19, title = "Cluster")
 
 
+library(tidyverse)
+
+# =============================================================================
+# Some more data pre-processing
+
+# Working on individuals
+# Remove unnecessary columns, convert to factors
+individ <- subset(individual.data, select = -c(`Motinos_gimimo_šalis`,
+                                               `Tėvo_(įtėvio,_patėvio,_globėjo)_asmens_numeris`,
+                                               `Motinos_(įmotės,_pamotės,_globėjos)_asmens_numeris`,
+                                               `Gimimo_šalis`,
+                                               `Sutuoktinio_(-ės),_sugyventinio_(-ės)_asmens_numeris`,
+                                               `Tėvo_gimimo_šalis`,
+                                               `Pagrindinės_pilietybės_šalis`,
+                                               `Gyvena_su_partneriu`,
+                                               `Šiuo_metu_mokosi`,
+                                               `Dabartinis_formaliojo_švietimo_ar_mokymo_veiklos_lygis`))
+
+individ <- as.data.frame(individ)
+
+# Renaming for easier access
+orig_names = colnames(individ)
+setnames(individ, colnames(individ), c("educ", "employment", "hh_ident",
+                                       "eiles_nr", "gender", "empl_status",
+                                       "job_contract", "status_in_house",
+                                       "marital", "prof", "objectid", "age"))
+
+# Which columns should be changed to factors
+factor_cols <- c("educ", "employment", "gender", "empl_status",
+                 "job_contract", "status_in_house",
+                 "marital", "prof")
+
+individ = individ %>%
+  mutate(across(factor_cols, as.factor))
+
+factor_levels = lapply(individ[factor_cols], levels)
+factor_levels
+
+# Changing factor level 8 to 0. Means "Not applicable". Note - not the same as missing
+levels(individ$educ) <- c(1, 2, 3, 0)
+levels(individ$employment) <- c(1, 2, 3, 4, 5, 6, 0)
+levels(individ$empl_status) <- c(1, 2, 3, 4, 0)
+levels(individ$job_contract) <- c(1, 2, 0)
+levels(individ$prof) <- c(1, 2, 3, 4, 5, 6, 7, 8, 0, 99)
+individ$prof[individ$prof == 99] = NA
+individ$prof = droplevels(individ$prof)
+
+
+# There are multiple subjects from one household, but there is only one line for expenses
+# Creating a new variable "household_size" to denote how many subjects participated from the same 
+# household. This will ~roughly~ be the num of dependents. 
+# If multiple subjects under one household - only the head of household will be left
+
+individ <- individ %>%
+  group_by(hh_ident) %>%
+  mutate(household_size = n()) %>%
+  ungroup()
+summary(individ)
+
+# Filter unique hh_ident, if not unique, keep only status_in_house = 1 (head)
+# But then according to employment status there are only retired ppl :D 
+# On the other hand, contracts are normal :D 
+
+individ_uniq <- individ %>%
+  group_by(hh_ident) %>%
+  filter(n() == 1 | status_in_house == 1) %>%
+  slice(1) %>%
+  ungroup()
+
+individ %>% summarise(count = n_distinct(hh_ident))
+individ_uniq %>% summarise(count = n_distinct(hh_ident))
+summary(individ_uniq)       
+
+# not sure if situation is better to keep only the first appearances in unique hh_ident
+summary(individ %>% distinct(hh_ident, .keep_all = TRUE))
+
+# Need to figure out the best approach
+
+# Reduce the df even more, because some columns now seem redundant
+# This step could be done at the beginning for better-looking code
+individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house, objectid))
+
+# Merge both dataframes - expenses and demographics
+merger = merge(expenditures.data, individ_uniq, by = "hh_ident")
+summary(merger)
+head(merger)
+
+# =============================================================================
+# set up PCA
+# Figure out the approach with factor variables - maybe to encode them with onehot encoder?
+# Afterwards use scree plot
+
+# =============================================================================
+# K-means with original data
 
 
 
