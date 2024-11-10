@@ -1,6 +1,8 @@
 library(tidyverse)
-
 source("main.R")
+
+# =============================================================================
+# Some more data pre-processing
 
 # Working on individuals
 # Remove unnecessary columns, convert to factors
@@ -74,3 +76,21 @@ summary(individ_uniq)
 summary(individ %>% distinct(hh_ident, .keep_all = TRUE))
 
 # Need to figure out the best approach
+
+# Reduce the df even more, because some columns now seem redundant
+# This step could be done at the beginning for better-looking code
+individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house, objectid))
+
+# Merge both dataframes - expenses and demographics
+merger = merge(expenditures.data, individ_uniq, by = "hh_ident")
+summary(merger)
+head(merger)
+
+# =============================================================================
+# set up PCA
+# Figure out the approach with factor variables - maybe to encode them with onehot encoder?
+# Afterwards use scree plot
+
+# =============================================================================
+# K-means with original data
+
