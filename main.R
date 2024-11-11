@@ -119,13 +119,13 @@ zero_counts_df <- data.frame(Category = names(zero_counts),
 zero_counts_df$Percentage_Zeros <- (zero_counts_df$Zero_Counts / total_counts) * 100
 print(zero_counts_df)
 
-#=======================
+# ----------------------------------------------------------------------------
 # Near zero-variance. According to this, Svietimo paslaugos could be removed due to near zero variance
 library(caret)
 nzv = nearZeroVar(expenditures.data[, -1], saveMetrics = TRUE)
 nzv
 
-#==============================================
+# ----------------------------------------------------------------------------
 
 # 4)
 # Box plots for each category
@@ -207,10 +207,10 @@ legend("topright", legend = levels(pca.data$cluster),
        col = colors, pch = 19, title = "Cluster")
 
 
-library(tidyverse)
-
-# =============================================================================
+# ----------------------------------------------------------------------------
 # Some more data pre-processing
+library(tidyverse)
+library(factoextra)
 
 # Working on individuals
 # Remove unnecessary columns, convert to factors
@@ -223,21 +223,23 @@ individ <- subset(individual.data, select = -c(`Motinos_gimimo_šalis`,
                                                `Pagrindinės_pilietybės_šalis`,
                                                `Gyvena_su_partneriu`,
                                                `Šiuo_metu_mokosi`,
-                                               `Dabartinis_formaliojo_švietimo_ar_mokymo_veiklos_lygis`))
+                                               `Dabartinis_formaliojo_švietimo_ar_mokymo_veiklos_lygis`,
+                                               `Pagrindinis_darbas:_profesija`,
+                                               `objectid`))
 
 individ <- as.data.frame(individ)
 
 # Renaming for easier access
-orig_names = colnames(individ)
-setnames(individ, colnames(individ), c("educ", "employment", "hh_ident",
-                                       "eiles_nr", "gender", "empl_status",
+orig_names = colnames(copy(individ))
+setnames(individ, colnames(individ), c("education", "employment", "hh_ident",
+                                       "eiles_nr", "gender", "employment_type",
                                        "job_contract", "status_in_house",
-                                       "marital", "prof", "objectid", "age"))
+                                       "marital", "age"))
 
 # Which columns should be changed to factors
-factor_cols <- c("educ", "employment", "gender", "empl_status",
+factor_cols <- c("education", "employment", "gender", "employment_type",
                  "job_contract", "status_in_house",
-                 "marital", "prof")
+                 "marital")
 
 individ = individ %>%
   mutate(across(factor_cols, as.factor))
@@ -246,13 +248,10 @@ factor_levels = lapply(individ[factor_cols], levels)
 factor_levels
 
 # Changing factor level 8 to 0. Means "Not applicable". Note - not the same as missing
-levels(individ$educ) <- c(1, 2, 3, 0)
+levels(individ$education) <- c(1, 2, 3, 0)
 levels(individ$employment) <- c(1, 2, 3, 4, 5, 6, 0)
-levels(individ$empl_status) <- c(1, 2, 3, 4, 0)
+levels(individ$employment_type) <- c(1, 2, 3, 4, 0)
 levels(individ$job_contract) <- c(1, 2, 0)
-levels(individ$prof) <- c(1, 2, 3, 4, 5, 6, 7, 8, 0, 99)
-individ$prof[individ$prof == 99] = NA
-individ$prof = droplevels(individ$prof)
 
 
 # There are multiple subjects from one household, but there is only one line for expenses
@@ -286,26 +285,77 @@ summary(individ %>% distinct(hh_ident, .keep_all = TRUE))
 # Need to figure out the best approach
 
 # Reduce the df even more, because some columns now seem redundant
-# This step could be done at the beginning for better-looking code
-individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house, objectid))
+individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house))
 
 # Merge both dataframes - expenses and demographics
-merger = merge(expenditures.data, individ_uniq, by = "hh_ident")
+merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")
 summary(merger)
-head(merger)
 
-# =============================================================================
+# ----------------------------------------------------------------------------
 # set up PCA
 # Figure out the approach with factor variables - maybe to encode them with onehot encoder?
 # Afterwards use scree plot
 
-# =============================================================================
+# ----------------------------------------------------------------------------
 # K-means with original data
 
+# creating dummy variables for factors:
+dummy <- dummyVars(" ~ .", data = merger)
+new_data <- data.frame(predict(dummy, newdata = merger))
+constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
+constant_columns
+new_data <- new_data[, -constant_columns]
+summary(new_data)
 
+# Finding optimal number of clusters
+# Seems that the optimal number of clusters is 3. 
+# Silhouette
+fviz_nbclust(new_data, kmeans, method = "silhouette")
+# Within sum of squares - Elbow method
+fviz_nbclust(new_data, kmeans, method = "wss")
+# Gap statistic - did not converge for me, takes a really long time
+# fviz_nbclust(new_data, kmeans, method = "gap_stat")
 
+# Perform K-means
+set.seed(0)
+k3 = kmeans(new_data, centers = 3, nstart = 20)
+# Visualize clusters
+fviz_cluster(k3, data = new_data)
 
+# Evaluate clusters
+# Cluster sizes
+k3$size
 
+# Silhouette score
+ss <- silhouette(k3$cluster, dist(new_data))
+mean(ss[,3])
 
+# Average silhouette score for different number of clusters
+avg_silhouette <- function(k){
+  km <- kmeans(new_data, centers = k, nstart = 20)
+  ss <- silhouette(km$cluster, dist(new_data))
+  return(mean(ss[,3]))
+}
 
+# Could try clustering with 2 or 4, but that would yield worse ss
+avg_sil_values <- map_dbl(2:15, avg_silhouette)
+par(mar=c(5, 5, 5, 2))
+plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
+     type = "b", pch = 19, frame = FALSE,
+     xlab = "Number of clusters k",
+     ylab = "Average Silhouette score")
+dev.off()
 
+# Investigate the differences, try to come up with cluster profile
+clust_result <- copy(new_data)
+clust_result$kmeans3 <- k3$cluster
+cluster1 <- clust_result[clust_result$kmeans3 == 1,]
+cluster2 <- clust_result[clust_result$kmeans3 == 2,]
+cluster3 <- clust_result[clust_result$kmeans3 == 3,]
+
+# Some notes on code - in the pre-processing step near zero variance 
+# could be deleted. Also, consider normalizing - scaling and centering - 
+# continuous data. Look into PCA. 
+
+# ----------------------------------------------------------------------------
+# DBSCAN with original data
