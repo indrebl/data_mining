@@ -291,10 +291,6 @@ individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house))
 merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")
 summary(merger)
 
-# ----------------------------------------------------------------------------
-# set up PCA
-# Figure out the approach with factor variables - maybe to encode them with onehot encoder?
-# Afterwards use scree plot
 
 # ----------------------------------------------------------------------------
 # K-means with original data
@@ -359,3 +355,66 @@ cluster3 <- clust_result[clust_result$kmeans3 == 3,]
 
 # ----------------------------------------------------------------------------
 # DBSCAN with original data
+library(dbscan)
+kNNdistplot(new_data, k = 5)
+abline(h = 550, lty=2)
+
+db <- dbscan(new_data, eps = 550, minPts = 5)
+print(db)
+# With standardized data:
+fviz_cluster(db, data = new_data, stand = TRUE,
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", ggtheme = theme_classic())
+# With not standardized data:
+fviz_cluster(db, data = new_data, stand = FALSE,
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", ggtheme = theme_classic())
+?fviz_cluster
+
+clust_result$dbscan2 <- db$cluster
+
+# ----------------------------------------------------------------------------
+# set up PCA
+# Question - what to do with categorical variables? Are there any challenges 
+# with one-hot encoded data?
+
+pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
+summary(pca)
+
+var_explained <- pca$sdev^2 / sum(pca$sdev^2)
+
+qplot(c(1:39), var_explained) +
+  geom_line() +
+  xlab("Principal Component") +
+  ylab("Variance explained") +
+  ggtitle("Scree plot") +
+  ylim(0, 1)
+
+# I'll choose first 15 PCs to explain ~72% of variance
+data_pca <- as.data.frame(-pca$x[,1:15])
+
+# Choose optimal number of clusters
+# 2 or 3
+fviz_nbclust(data_pca, kmeans, method = "wss")
+# 2
+fviz_nbclust(data_pca, kmeans, method = "silhouette")
+
+# ----------------------------------------------------------------------------
+# Perform K-means with pca transformed data
+set.seed(0)
+k2_pca <- kmeans(data_pca, centers = 2, nstart = 20)
+fviz_cluster(k2_pca, data = data_pca)
+
+k3_pca <- kmeans(data_pca, centers = 3, nstart = 20)
+fviz_cluster(k3_pca, data = data_pca)
+
+# Evaluate clusters
+k2_pca$size
+k3_pca$size
+
+# K-means results seem to be worse with PCA than without.
+ss_pca2 <- silhouette(k2_pca$cluster, dist(data_pca))
+mean(ss_pca2[,3])
+
+ss_pca3 <- silhouette(k3_pca$cluster, dist(data_pca))
+mean(ss_pca3[,3])
