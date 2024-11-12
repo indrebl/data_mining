@@ -211,6 +211,7 @@ legend("topright", legend = levels(pca.data$cluster),
 # Some more data pre-processing
 library(tidyverse)
 library(factoextra)
+library(cluster)
 
 # Working on individuals
 # Remove unnecessary columns, convert to factors
@@ -266,8 +267,6 @@ individ <- individ %>%
 summary(individ)
 
 # Filter unique hh_ident, if not unique, keep only status_in_house = 1 (head)
-# But then according to employment status there are only retired ppl :D 
-# On the other hand, contracts are normal :D 
 
 individ_uniq <- individ %>%
   group_by(hh_ident) %>%
@@ -334,6 +333,7 @@ avg_silhouette <- function(k){
 }
 
 # Could try clustering with 2 or 4, but that would yield worse ss
+
 avg_sil_values <- map_dbl(2:15, avg_silhouette)
 par(mar=c(5, 5, 5, 2))
 plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
@@ -418,3 +418,4 @@ mean(ss_pca2[,3])
 
 ss_pca3 <- silhouette(k3_pca$cluster, dist(data_pca))
 mean(ss_pca3[,3])
+
