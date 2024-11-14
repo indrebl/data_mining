@@ -72,7 +72,7 @@ setdiff(colnames(individual.data), individual.data.expl1$Var_name) # No differen
 col.names.old <- colnames(individual.data)
 colnames.expl <- individual.data.expl1[Var_name %in% col.names.old]
 setnames(individual.data, colnames.expl$Var_name, colnames.expl$Var_expl)
-#-------------------------------------------------------------------------------
+ #-------------------------------------------------------------------------------
 # Exploratory data analysis for expenditures data
 
 # 1)
@@ -206,7 +206,6 @@ plot(pca.data$PC1, pca.data$PC2,
 legend("topright", legend = levels(pca.data$cluster), 
        col = colors, pch = 19, title = "Cluster")
 
-
 # ----------------------------------------------------------------------------
 # Some more data pre-processing
 library(tidyverse)
@@ -278,11 +277,6 @@ individ %>% summarise(count = n_distinct(hh_ident))
 individ_uniq %>% summarise(count = n_distinct(hh_ident))
 summary(individ_uniq)       
 
-# not sure if situation is better to keep only the first appearances in unique hh_ident
-summary(individ %>% distinct(hh_ident, .keep_all = TRUE))
-
-# Need to figure out the best approach
-
 # Reduce the df even more, because some columns now seem redundant
 individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house))
 
@@ -290,10 +284,21 @@ individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house))
 merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")
 summary(merger)
 
+# Reduced data
+merger.reduced <- merger[, .(`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`,
+                      education,
+                      employment,
+                      gender,
+                      employment_type,
+                      job_contract,
+                      marital,
+                      age,
+                      household_size)]
 
 # ----------------------------------------------------------------------------
-# K-means with original data
-
+# 1. K-means with original data
+# ----------------------------------------------------------------------------
+merger <- merger[, -c("hh_ident")]
 # creating dummy variables for factors:
 dummy <- dummyVars(" ~ .", data = merger)
 new_data <- data.frame(predict(dummy, newdata = merger))
@@ -303,7 +308,7 @@ new_data <- new_data[, -constant_columns]
 summary(new_data)
 
 # Finding optimal number of clusters
-# Seems that the optimal number of clusters is 3. 
+# Seems that the optimal number of clusters is 2 (before column hh_ident was not excluded optimal number of clusters was 3). 
 # Silhouette
 fviz_nbclust(new_data, kmeans, method = "silhouette")
 # Within sum of squares - Elbow method
@@ -313,16 +318,16 @@ fviz_nbclust(new_data, kmeans, method = "wss")
 
 # Perform K-means
 set.seed(0)
-k3 = kmeans(new_data, centers = 3, nstart = 20)
+k2 = kmeans(new_data, centers = 2, nstart = 20)
 # Visualize clusters
-fviz_cluster(k3, data = new_data)
+fviz_cluster(k2, data = new_data)
 
 # Evaluate clusters
 # Cluster sizes
-k3$size
+k2$size
 
 # Silhouette score
-ss <- silhouette(k3$cluster, dist(new_data))
+ss <- silhouette(k2$cluster, dist(new_data))
 mean(ss[,3])
 
 # Average silhouette score for different number of clusters
@@ -333,7 +338,6 @@ avg_silhouette <- function(k){
 }
 
 # Could try clustering with 2 or 4, but that would yield worse ss
-
 avg_sil_values <- map_dbl(2:15, avg_silhouette)
 par(mar=c(5, 5, 5, 2))
 plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
@@ -352,6 +356,290 @@ cluster3 <- clust_result[clust_result$kmeans3 == 3,]
 # Some notes on code - in the pre-processing step near zero variance 
 # could be deleted. Also, consider normalizing - scaling and centering - 
 # continuous data. Look into PCA. 
+
+# ----------------------------------------------------------------------------
+# 2. K-means with original data + PCA
+# ----------------------------------------------------------------------------
+pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
+summary(pca)
+
+var_explained <- pca$sdev^2 / sum(pca$sdev^2)
+
+qplot(c(1:38), var_explained) +
+  geom_line() +
+  xlab("Principal Component") +
+  ylab("Variance explained") +
+  ggtitle("Scree plot") +
+  ylim(0, 1)
+
+# I'll choose first 15 PCs to explain ~72% of variance
+# data_pca <- as.data.frame(-pca$x[,1:15]) # why negative sign is added?
+data_pca <- as.data.frame(pca$x[,1:15])
+
+# Choose optimal number of clusters
+# 2 or 3
+fviz_nbclust(data_pca, kmeans, method = "wss")
+# 2
+fviz_nbclust(data_pca, kmeans, method = "silhouette")
+
+# ----------------------------------------------------------------------------
+# Perform K-means with pca transformed data
+set.seed(0)
+k2_pca <- kmeans(data_pca, centers = 2, nstart = 20)
+fviz_cluster(k2_pca, data = data_pca)
+fviz_pca_ind(pca, habillage = k2_pca$cluster, label = "none", addEllipses = TRUE)
+
+k3_pca <- kmeans(data_pca, centers = 3, nstart = 20)
+fviz_cluster(k3_pca, data = data_pca)
+fviz_pca_ind(pca, habillage = k3_pca$cluster, label = "none", addEllipses = TRUE)
+
+# Evaluate clusters
+k2_pca$size
+k3_pca$size
+
+# K-means results seem to be worse with PCA than without.
+ss_pca2 <- silhouette(k2_pca$cluster, dist(data_pca))
+mean(ss_pca2[,3])
+
+ss_pca3 <- silhouette(k3_pca$cluster, dist(data_pca))
+mean(ss_pca3[,3])
+
+# ----------------------------------------------------------------------------
+# 3. K-means with original data + standardization
+# ----------------------------------------------------------------------------
+
+# Columns to standardize
+columns_to_scale <- c("Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)",
+                      "Maistas_ir_nealkoholiniai_gėrimai",
+                      "Alkoholiniai_gėrimai,_tabakas_ir_narkotikai",
+                      "Švietimo_paslaugos",
+                      "Restoranai_ir_apgyvendinimo_paslaugos",
+                      "Draudimas_ir_finansinės_paslaugos",
+                      "Asmens_priežiūra,_socialinė_apsauga_ir_įvairios_prekės_ir_paslaugos",
+                      "Apranga_ir_avalynė",
+                      "Būstas,_vanduo,_elektra,_dujos_ir_kitas_kuras",
+                      "Būsto_apstatymo,_namų_ūkio_įranga_ir_kasdienė_namų_priežiūra",
+                      "Sveikata",
+                      "Transportas",
+                      "Informacija_ir_ryšiai",
+                      "Poilsis,_sportas_ir_kultūra",
+                      "household_size",
+                      "age")
+
+# Scale the selected columns (standardization)
+merger[, intersect(columns_to_scale, names(merger)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger))]
+
+# creating dummy variables for factors:
+dummy <- dummyVars(" ~ .", data = merger)
+new_data <- data.frame(predict(dummy, newdata = merger))
+constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
+constant_columns
+new_data <- new_data[, -constant_columns]
+summary(new_data)
+
+# Finding optimal number of clusters
+# Seems that the optimal number of clusters is 2. 
+# Silhouette
+fviz_nbclust(new_data, kmeans, method = "silhouette")
+# Within sum of squares - Elbow method
+fviz_nbclust(new_data, kmeans, method = "wss")
+# Gap statistic - did not converge for me, takes a really long time
+# fviz_nbclust(new_data, kmeans, method = "gap_stat")
+
+# Perform K-means
+set.seed(0)
+k2 = kmeans(new_data, centers = 2, nstart = 20)
+# Visualize clusters
+fviz_cluster(k2, data = new_data)
+
+# Evaluate clusters
+# Cluster sizes
+k2$size
+
+# Silhouette score
+ss <- silhouette(k2$cluster, dist(new_data))
+mean(ss[,3])
+
+# Average silhouette score for different number of clusters
+avg_silhouette <- function(k){
+  km <- kmeans(new_data, centers = k, nstart = 20)
+  ss <- silhouette(km$cluster, dist(new_data))
+  return(mean(ss[,3]))
+}
+
+# highest score with 2 clusters
+avg_sil_values <- map_dbl(2:15, avg_silhouette)
+par(mar=c(5, 5, 5, 2))
+plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
+     type = "b", pch = 19, frame = FALSE,
+     xlab = "Number of clusters k",
+     ylab = "Average Silhouette score")
+dev.off()
+
+# ----------------------------------------------------------------------------
+# 4. K-means with reduced data
+# ----------------------------------------------------------------------------
+# creating dummy variables for factors:
+dummy <- dummyVars(" ~ .", data = merger.reduced)
+new_data <- data.frame(predict(dummy, newdata = merger.reduced))
+constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
+constant_columns
+new_data <- new_data[, -constant_columns]
+summary(new_data)
+
+# Finding optimal number of clusters
+# Seems that the optimal number of clusters is 2. 
+# Silhouette
+fviz_nbclust(new_data, kmeans, method = "silhouette")
+# Within sum of squares - Elbow method
+fviz_nbclust(new_data, kmeans, method = "wss")
+# Gap statistic - did not converge for me, takes a really long time
+# fviz_nbclust(new_data, kmeans, method = "gap_stat")
+
+# Perform K-means
+set.seed(0)
+k2 = kmeans(new_data, centers = 2, nstart = 20)
+# Visualize clusters
+fviz_cluster(k2, data = new_data)
+
+# Evaluate clusters
+# Cluster sizes
+k2$size
+
+# Silhouette score
+ss <- silhouette(k2$cluster, dist(new_data))
+mean(ss[,3])
+
+# Average silhouette score for different number of clusters
+avg_silhouette <- function(k){
+  km <- kmeans(new_data, centers = k, nstart = 20)
+  ss <- silhouette(km$cluster, dist(new_data))
+  return(mean(ss[,3]))
+}
+
+# Could try clustering with 2 or 4, but that would yield worse ss
+avg_sil_values <- map_dbl(2:15, avg_silhouette)
+par(mar=c(5, 5, 5, 2))
+plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
+     type = "b", pch = 19, frame = FALSE,
+     xlab = "Number of clusters k",
+     ylab = "Average Silhouette score")
+dev.off()
+
+# ----------------------------------------------------------------------------
+# 5. K-means with reduced data + PCA
+# ----------------------------------------------------------------------------
+pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
+summary(pca)
+
+var_explained <- pca$sdev^2 / sum(pca$sdev^2)
+
+qplot(c(1:length(var_explained)), var_explained) +
+  geom_line() +
+  xlab("Principal Component") +
+  ylab("Variance explained") +
+  ggtitle("Scree plot") +
+  ylim(0, 1)
+
+# I'll choose first 16 PCs to explain ~99% of variance
+data_pca <- as.data.frame(pca$x[,1:16])
+
+# Choose optimal number of clusters
+# 2 or 3
+fviz_nbclust(data_pca, kmeans, method = "wss")
+# 2
+fviz_nbclust(data_pca, kmeans, method = "silhouette")
+
+# ----------------------------------------------------------------------------
+# Perform K-means with pca transformed data
+set.seed(0)
+k2_pca <- kmeans(data_pca, centers = 2, nstart = 20)
+fviz_cluster(k2_pca, data = data_pca)
+fviz_pca_ind(pca, habillage = k2_pca$cluster, label = "none", addEllipses = TRUE)
+
+k3_pca <- kmeans(data_pca, centers = 3, nstart = 20)
+fviz_cluster(k3_pca, data = data_pca)
+fviz_pca_ind(pca, habillage = k3_pca$cluster, label = "none", addEllipses = TRUE)
+
+# Evaluate clusters
+k2_pca$size
+k3_pca$size
+
+# K-means results seem to be worse with PCA than without.
+ss_pca2 <- silhouette(k2_pca$cluster, dist(data_pca))
+mean(ss_pca2[,3])
+
+ss_pca3 <- silhouette(k3_pca$cluster, dist(data_pca))
+mean(ss_pca3[,3])
+
+# ----------------------------------------------------------------------------
+# 6. K-means with reduced data + standardization
+# ----------------------------------------------------------------------------
+# Scale the selected columns (standardization)
+merger.reduced[, intersect(columns_to_scale, names(merger.reduced)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger.reduced))]
+
+# creating dummy variables for factors:
+dummy <- dummyVars(" ~ .", data = merger.reduced)
+new_data <- data.frame(predict(dummy, newdata = merger.reduced))
+constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
+constant_columns
+new_data <- new_data[, -constant_columns]
+summary(new_data)
+
+# Finding optimal number of clusters
+# Seems that the optimal number of clusters is 2. 
+# Silhouette
+fviz_nbclust(new_data, kmeans, method = "silhouette")
+# Within sum of squares - Elbow method
+fviz_nbclust(new_data, kmeans, method = "wss")
+# Gap statistic - did not converge for me, takes a really long time
+# fviz_nbclust(new_data, kmeans, method = "gap_stat")
+
+# Perform K-means
+set.seed(0)
+k2 = kmeans(new_data, centers = 2, nstart = 20)
+# Visualize clusters
+fviz_cluster(k2, data = new_data)
+
+# Evaluate clusters
+# Cluster sizes
+k2$size
+
+# Silhouette score
+ss <- silhouette(k2$cluster, dist(new_data))
+mean(ss[,3])
+
+# Average silhouette score for different number of clusters
+avg_silhouette <- function(k){
+  km <- kmeans(new_data, centers = k, nstart = 20)
+  ss <- silhouette(km$cluster, dist(new_data))
+  return(mean(ss[,3]))
+}
+
+# highest score with 2 clusters
+avg_sil_values <- map_dbl(2:15, avg_silhouette)
+par(mar=c(5, 5, 5, 2))
+plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
+     type = "b", pch = 19, frame = FALSE,
+     xlab = "Number of clusters k",
+     ylab = "Average Silhouette score")
+dev.off()
+
+#-------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ----------------------------------------------------------------------------
 # DBSCAN with original data
@@ -399,23 +687,4 @@ fviz_nbclust(data_pca, kmeans, method = "wss")
 # 2
 fviz_nbclust(data_pca, kmeans, method = "silhouette")
 
-# ----------------------------------------------------------------------------
-# Perform K-means with pca transformed data
-set.seed(0)
-k2_pca <- kmeans(data_pca, centers = 2, nstart = 20)
-fviz_cluster(k2_pca, data = data_pca)
-
-k3_pca <- kmeans(data_pca, centers = 3, nstart = 20)
-fviz_cluster(k3_pca, data = data_pca)
-
-# Evaluate clusters
-k2_pca$size
-k3_pca$size
-
-# K-means results seem to be worse with PCA than without.
-ss_pca2 <- silhouette(k2_pca$cluster, dist(data_pca))
-mean(ss_pca2[,3])
-
-ss_pca3 <- silhouette(k3_pca$cluster, dist(data_pca))
-mean(ss_pca3[,3])
 
