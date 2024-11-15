@@ -2,7 +2,7 @@
 rm(list = ls())
 
 # Package name
-package.names <- c("data.table", "dplyr", "readxl")
+package.names <- c("data.table", "dplyr", "readxl", "ggplot2", "randomForest")
 
 # Loading packages
 for (pkg_name in package.names) {
@@ -348,10 +348,73 @@ dev.off()
 
 # Investigate the differences, try to come up with cluster profile
 clust_result <- copy(new_data)
-clust_result$kmeans3 <- k3$cluster
-cluster1 <- clust_result[clust_result$kmeans3 == 1,]
-cluster2 <- clust_result[clust_result$kmeans3 == 2,]
-cluster3 <- clust_result[clust_result$kmeans3 == 3,]
+clust_result$kmeans2 <- k2$cluster
+cluster1 <- clust_result[clust_result$kmeans2 == 1,]
+cluster2 <- clust_result[clust_result$kmeans2 == 2,]
+
+# MEASURING IMPORTANCE WITH randoForest
+k2_copy <- k2  # Create a copy of the k2 object (cluster assignment only)
+
+# Create a copy of new_data to keep the original data intact
+new_data_copy <- new_data
+
+# Assign cluster labels to the copy of new_data (do not change original new_data)
+new_data_copy$Cluster <- as.factor(k2_copy$cluster)
+
+# Train random forest model to predict clusters based on other features
+rf_model <- randomForest(Cluster ~ ., data = new_data_copy, importance = TRUE, ntree = 200)
+
+# Extract feature importance
+importance_rf <- importance(rf_model, type = 2)  # type = 2 gives Mean Decrease in Accuracy
+
+# Print the importance to check
+print(importance_rf)
+
+importance_df <- as.data.frame(importance_rf)  # Convert importance to data frame
+importance_df$Feature <- rownames(importance_df)  # Add feature names as a new column
+
+# Now, importance_df should have 'Feature' and 'MeanDecreaseGini' columns
+colnames(importance_df) <- c("MeanDecreaseGini", "Feature")  # Rename columns for clarity
+
+# Sort importance by 'MeanDecreaseGini'
+importance_df <- importance_df[order(importance_df$MeanDecreaseGini, decreasing = TRUE), ]
+
+
+# Plotting feature importance
+ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Feature Importance for K-means Clusters (Random Forest)",
+       x = "Features",
+       y = "Importance (Mean Decrease in Gini)") +
+  theme_minimal()
+
+
+
+#  Choose the top N important features (e.g., top 5 features)
+top_features <- rownames(importance_df)[1:6]  # Modify this number as needed (e.g., top 5 features)
+
+# Add cluster labels to the original data (or copy)
+new_data_copy$Cluster <- as.factor(k2_copy$cluster)
+
+# Filter the data to include only the top important features and Cluster
+data_for_boxplots <- new_data_copy[, c(top_features, "Cluster")]
+
+# Reshape the data into a long format for ggplot (melt the data)
+library(reshape2)
+data_long <- melt(data_for_boxplots, id.vars = "Cluster", variable.name = "Feature", value.name = "Value")
+
+#  Create boxplots for the top features, grouped by cluster
+ggplot(data_long, aes(x = Cluster, y = Value, fill = Cluster)) +
+  geom_boxplot() +
+  facet_wrap(~ Feature, scales = "free_y") +  # Separate boxplots for each feature
+  labs(title = "Boxplots of Top Features by K-means Clusters",
+       x = "Cluster",
+       y = "Feature Value") +
+  theme_minimal()
+
+
+
 
 # Some notes on code - in the pre-processing step near zero variance 
 # could be deleted. Also, consider normalizing - scaling and centering - 
