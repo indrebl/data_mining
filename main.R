@@ -281,7 +281,7 @@ summary(individ_uniq)
 individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house))
 
 # Merge both dataframes - expenses and demographics
-merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")
+merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident", "Švietimo_paslaugos")]
 summary(merger)
 
 # Reduced data
@@ -298,7 +298,6 @@ merger.reduced <- merger[, .(`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės
 # ----------------------------------------------------------------------------
 # 1. K-means with original data
 # ----------------------------------------------------------------------------
-merger <- merger[, -c("hh_ident")]
 # creating dummy variables for factors:
 dummy <- dummyVars(" ~ .", data = merger)
 new_data <- data.frame(predict(dummy, newdata = merger))
@@ -688,29 +687,24 @@ plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
      ylab = "Average Silhouette score")
 dev.off()
 
-#-------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ----------------------------------------------------------------------------
 # DBSCAN with original data
 library(dbscan)
-kNNdistplot(new_data, k = 5)
-abline(h = 550, lty=2)
+merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident")]
+dummy <- dummyVars(" ~ .", data = merger)
+new_data <- data.frame(predict(dummy, newdata = merger))
+constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
+constant_columns
+new_data <- new_data[, -constant_columns]
+summary(new_data)
 
-db <- dbscan(new_data, eps = 550, minPts = 5)
+# Pang Ning book 528p
+# https://www.sefidian.com/2022/12/18/how-to-determine-epsilon-and-minpts-parameters-of-dbscan-clustering/
+data_dim <- dim(new_data)[2]
+kNNdistplot(new_data, k = data_dim + 1) 
+abline(h = 600, lty=2)
+
+db <- dbscan(new_data, eps = 600, minPts = data_dim + 1)
 print(db)
 # With standardized data:
 fviz_cluster(db, data = new_data, stand = TRUE,
@@ -720,34 +714,54 @@ fviz_cluster(db, data = new_data, stand = TRUE,
 fviz_cluster(db, data = new_data, stand = FALSE,
              ellipse = TRUE, show.clust.cent = FALSE,
              geom = "point", ggtheme = theme_classic())
-?fviz_cluster
 
 clust_result$dbscan2 <- db$cluster
-
 # ----------------------------------------------------------------------------
-# set up PCA
-# Question - what to do with categorical variables? Are there any challenges 
-# with one-hot encoded data?
+# DBSCAN with original data + sclaed
 
-pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
-summary(pca)
+# Columns to standardize
+columns_to_scale <- c("Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)",
+                      "Maistas_ir_nealkoholiniai_gėrimai",
+                      "Alkoholiniai_gėrimai,_tabakas_ir_narkotikai",
+                      "Švietimo_paslaugos",
+                      "Restoranai_ir_apgyvendinimo_paslaugos",
+                      "Draudimas_ir_finansinės_paslaugos",
+                      "Asmens_priežiūra,_socialinė_apsauga_ir_įvairios_prekės_ir_paslaugos",
+                      "Apranga_ir_avalynė",
+                      "Būstas,_vanduo,_elektra,_dujos_ir_kitas_kuras",
+                      "Būsto_apstatymo,_namų_ūkio_įranga_ir_kasdienė_namų_priežiūra",
+                      "Sveikata",
+                      "Transportas",
+                      "Informacija_ir_ryšiai",
+                      "Poilsis,_sportas_ir_kultūra",
+                      "household_size",
+                      "age")
 
-var_explained <- pca$sdev^2 / sum(pca$sdev^2)
+# Scale the selected columns (standardization)
+merger.scaled <- merger
+merger.scaled <- merger.scaled[, intersect(columns_to_scale, names(merger.scaled)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger.scaled))]
 
-qplot(c(1:39), var_explained) +
-  geom_line() +
-  xlab("Principal Component") +
-  ylab("Variance explained") +
-  ggtitle("Scree plot") +
-  ylim(0, 1)
+# creating dummy variables for factors:
+dummy <- dummyVars(" ~ .", data = merger.scaled)
+new_data <- data.frame(predict(dummy, newdata = merger.scaled))
+constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
+constant_columns
+new_data <- new_data[, -constant_columns]
+summary(new_data)
 
-# I'll choose first 15 PCs to explain ~72% of variance
-data_pca <- as.data.frame(-pca$x[,1:15])
+data_dim <- dim(new_data)[2]
+kNNdistplot(new_data, k = data_dim + 1) 
+abline(h = 7, lty=2)
 
-# Choose optimal number of clusters
-# 2 or 3
-fviz_nbclust(data_pca, kmeans, method = "wss")
-# 2
-fviz_nbclust(data_pca, kmeans, method = "silhouette")
+db <- dbscan(new_data, eps = 7, minPts = data_dim + 1)
+print(db)
+# With standardized data:
+fviz_cluster(db, data = new_data, stand = TRUE,
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", ggtheme = theme_classic())
+# With not standardized data:
+fviz_cluster(db, data = new_data, stand = FALSE,
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", ggtheme = theme_classic())
 
 
