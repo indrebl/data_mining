@@ -2,7 +2,7 @@
 rm(list = ls())
 
 # Package name
-package.names <- c("data.table", "dplyr", "readxl", "ggplot2", "randomForest")
+package.names <- c("data.table", "dplyr", "readxl", "ggplot2", "randomForest", "reshape2", "caret", "tidyverse", "factoextra", "cluster", "dbscan")
 
 # Loading packages
 for (pkg_name in package.names) {
@@ -121,12 +121,10 @@ print(zero_counts_df)
 
 # ----------------------------------------------------------------------------
 # Near zero-variance. According to this, Svietimo paslaugos could be removed due to near zero variance
-library(caret)
 nzv = nearZeroVar(expenditures.data[, -1], saveMetrics = TRUE)
 nzv
 
 # ----------------------------------------------------------------------------
-
 # 4)
 # Box plots for each category
 par(mar = c(2, 2, 2, 2)) 
@@ -146,21 +144,21 @@ for (col in colnames(expenditures.data[, -c("hh_ident")])) {
 # However, there are a lot of outliers (households that have unusually high expenditures)
 
 # 5)
-# Summary statistics for each categorie nad total expenditures
+# Summary statistics for each category nad total expenditures
 summ.stats <- data.table(summary(expenditures.data[, -c("hh_ident")]))
 
 # 6)
 # Correlation between categories
-cor.result <- cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)"), with = FALSE], use = "complete.obs")
+cor.result <- cor(expenditures.data[, -c("hh_ident", "All_household_consumption_expenses_(monthly)"), with = FALSE], use = "complete.obs")
 # Checking correlation - there's no multicollinearity exceeding 50%.
-findCorrelation(cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), cutoff = .5)
+findCorrelation(cor(expenditures.data[, -c("hh_ident", "All_household_consumption_expenses_(monthly)")]), cutoff = .5)
 
 # 7)
 expenditures.prop = copy(expenditures.data)
 summary(expenditures.data)
 # Proportions of expenses
-for (col in colnames(expenditures.prop[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")])) {
-  expenditures.prop[, (paste0(col, "_prop")) := get(col)/`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`]
+for (col in colnames(expenditures.prop[, -c("hh_ident", "All_household_consumption_expenses_(monthly)")])) {
+  expenditures.prop[, (paste0(col, "_prop")) := get(col)/`All_household_consumption_expenses_(monthly)`]
 }
 
 par(mar = c(2, 2, 2, 2))
@@ -181,12 +179,12 @@ for (col in prop.col.names) {
 set.seed(123)
 k <- 2  # 2 clusters selected
 # scale function standardizes data (mean is 0, st dev is 1)
-kmeans.res <- kmeans(scale(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), centers = k)
+kmeans.res <- kmeans(scale(expenditures.data[, -c("hh_ident", "All_household_consumption_expenses_(monthly)")]), centers = k)
 expenditures.data.clust <- copy(expenditures.data)
 expenditures.data.clust[, cluster := kmeans.res$cluster]
  
 # Visualizing clusters
-pca.result <- prcomp(scale(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), center = TRUE, scale. = TRUE)
+pca.result <- prcomp(scale(expenditures.data[, -c("hh_ident", "All_household_consumption_expenses_(monthly)")]), center = TRUE, scale. = TRUE)
 # Extracting first two principal components
 pca.data <- data.frame(PC1 = pca.result$x[, 1], PC2 = pca.result$x[, 2])
 # Adding cluster information
@@ -208,9 +206,6 @@ legend("topright", legend = levels(pca.data$cluster),
 
 # ----------------------------------------------------------------------------
 # Some more data pre-processing
-library(tidyverse)
-library(factoextra)
-library(cluster)
 
 # Working on individuals
 # Remove unnecessary columns, convert to factors
@@ -225,26 +220,19 @@ individ <- subset(individual.data, select = -c(`Motinos_gimimo_šalis`,
                                                `Šiuo_metu_mokosi`,
                                                `Dabartinis_formaliojo_švietimo_ar_mokymo_veiklos_lygis`,
                                                `Pagrindinis_darbas:_profesija`,
-                                               `objectid`))
+                                               `objectid`,
+                                               `Namų_ūkio_nario_eilės_Nr.`))
 
 individ <- as.data.frame(individ)
-
-# Renaming for easier access
-orig_names = colnames(copy(individ))
-setnames(individ, colnames(individ), c("education", "employment", "hh_ident",
-                                       "eiles_nr", "gender", "employment_type",
-                                       "job_contract", "status_in_house",
-                                       "marital", "age"))
-
 # Which columns should be changed to factors
 factor_cols <- c("education", "employment", "gender", "employment_type",
                  "job_contract", "status_in_house",
                  "marital")
 
-individ = individ %>%
+individ <- individ %>%
   mutate(across(factor_cols, as.factor))
 
-factor_levels = lapply(individ[factor_cols], levels)
+factor_levels <- lapply(individ[factor_cols], levels)
 factor_levels
 
 # Changing factor level 8 to 0. Means "Not applicable". Note - not the same as missing
@@ -252,7 +240,6 @@ levels(individ$education) <- c(1, 2, 3, 0)
 levels(individ$employment) <- c(1, 2, 3, 4, 5, 6, 0)
 levels(individ$employment_type) <- c(1, 2, 3, 4, 0)
 levels(individ$job_contract) <- c(1, 2, 0)
-
 
 # There are multiple subjects from one household, but there is only one line for expenses
 # Creating a new variable "household_size" to denote how many subjects participated from the same 
@@ -266,7 +253,6 @@ individ <- individ %>%
 summary(individ)
 
 # Filter unique hh_ident, if not unique, keep only status_in_house = 1 (head)
-
 individ_uniq <- individ %>%
   group_by(hh_ident) %>%
   filter(n() == 1 | status_in_house == 1) %>%
@@ -278,22 +264,11 @@ individ_uniq %>% summarise(count = n_distinct(hh_ident))
 summary(individ_uniq)       
 
 # Reduce the df even more, because some columns now seem redundant
-individ_uniq <- subset(individ_uniq, select = -c(eiles_nr, status_in_house))
+individ_uniq <- subset(individ_uniq, select = -c(status_in_house))
 
 # Merge both dataframes - expenses and demographics
-merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident", "Švietimo_paslaugos")]
+merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident", "Education_services")] 
 summary(merger)
-
-# Reduced data
-merger.reduced <- merger[, .(`Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)`,
-                      education,
-                      employment,
-                      gender,
-                      employment_type,
-                      job_contract,
-                      marital,
-                      age,
-                      household_size)]
 
 # ----------------------------------------------------------------------------
 # 1. K-means with original data
@@ -317,16 +292,16 @@ fviz_nbclust(new_data, kmeans, method = "wss")
 
 # Perform K-means
 set.seed(0)
-k2 = kmeans(new_data, centers = 2, nstart = 20)
+k3 <- kmeans(new_data, centers = 3, nstart = 20)
 # Visualize clusters
-fviz_cluster(k2, data = new_data)
+fviz_cluster(k3, data = new_data)
 
 # Evaluate clusters
 # Cluster sizes
-k2$size
+k3$size
 
 # Silhouette score
-ss <- silhouette(k2$cluster, dist(new_data))
+ss <- silhouette(k3$cluster, dist(new_data))
 mean(ss[,3])
 
 # Average silhouette score for different number of clusters
@@ -345,20 +320,14 @@ plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
      ylab = "Average Silhouette score")
 dev.off()
 
-# Investigate the differences, try to come up with cluster profile
-clust_result <- copy(new_data)
-clust_result$kmeans2 <- k2$cluster
-cluster1 <- clust_result[clust_result$kmeans2 == 1,]
-cluster2 <- clust_result[clust_result$kmeans2 == 2,]
-
 # MEASURING IMPORTANCE WITH randoForest
-k2_copy <- k2  # Create a copy of the k2 object (cluster assignment only)
+k3_copy <- k3  # Create a copy of the k2 object (cluster assignment only)
 
 # Create a copy of new_data to keep the original data intact
 new_data_copy <- new_data
 
 # Assign cluster labels to the copy of new_data (do not change original new_data)
-new_data_copy$Cluster <- as.factor(k2_copy$cluster)
+new_data_copy$Cluster <- as.factor(k3_copy$cluster)
 
 # Train random forest model to predict clusters based on other features
 rf_model <- randomForest(Cluster ~ ., data = new_data_copy, importance = TRUE, ntree = 200)
@@ -378,7 +347,6 @@ colnames(importance_df) <- c("MeanDecreaseGini", "Feature")  # Rename columns fo
 # Sort importance by 'MeanDecreaseGini'
 importance_df <- importance_df[order(importance_df$MeanDecreaseGini, decreasing = TRUE), ]
 
-
 # Plotting feature importance
 ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
   geom_bar(stat = "identity", fill = "steelblue") +
@@ -388,19 +356,16 @@ ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecrea
        y = "Importance (Mean Decrease in Gini)") +
   theme_minimal()
 
-
-
 #  Choose the top N important features (e.g., top 5 features)
-top_features <- rownames(importance_df)[1:6]  # Modify this number as needed (e.g., top 5 features)
+top_features <- rownames(importance_df)[1:16]  # Modify this number as needed (e.g., top 5 features)
 
 # Add cluster labels to the original data (or copy)
-new_data_copy$Cluster <- as.factor(k2_copy$cluster)
+new_data_copy$Cluster <- as.factor(k3_copy$cluster)
 
 # Filter the data to include only the top important features and Cluster
 data_for_boxplots <- new_data_copy[, c(top_features, "Cluster")]
 
 # Reshape the data into a long format for ggplot (melt the data)
-library(reshape2)
 data_long <- melt(data_for_boxplots, id.vars = "Cluster", variable.name = "Feature", value.name = "Value")
 
 #  Create boxplots for the top features, grouped by cluster
@@ -411,9 +376,6 @@ ggplot(data_long, aes(x = Cluster, y = Value, fill = Cluster)) +
        x = "Cluster",
        y = "Feature Value") +
   theme_minimal()
-
-
-
 
 # Some notes on code - in the pre-processing step near zero variance 
 # could be deleted. Also, consider normalizing - scaling and centering - 
@@ -427,7 +389,7 @@ summary(pca)
 
 var_explained <- pca$sdev^2 / sum(pca$sdev^2)
 
-qplot(c(1:38), var_explained) +
+qplot(c(1:length(new_data)), var_explained) +
   geom_line() +
   xlab("Principal Component") +
   ylab("Variance explained") +
@@ -436,7 +398,7 @@ qplot(c(1:38), var_explained) +
 
 # I'll choose first 15 PCs to explain ~72% of variance
 # data_pca <- as.data.frame(-pca$x[,1:15]) # why negative sign is added?
-data_pca <- as.data.frame(pca$x[,1:15])
+data_pca <- as.data.frame(pca$x[,1:5])
 
 # Choose optimal number of clusters
 # 2 or 3
@@ -471,29 +433,29 @@ mean(ss_pca3[,3])
 # ----------------------------------------------------------------------------
 
 # Columns to standardize
-columns_to_scale <- c("Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)",
-                      "Maistas_ir_nealkoholiniai_gėrimai",
-                      "Alkoholiniai_gėrimai,_tabakas_ir_narkotikai",
-                      "Švietimo_paslaugos",
-                      "Restoranai_ir_apgyvendinimo_paslaugos",
-                      "Draudimas_ir_finansinės_paslaugos",
-                      "Asmens_priežiūra,_socialinė_apsauga_ir_įvairios_prekės_ir_paslaugos",
-                      "Apranga_ir_avalynė",
-                      "Būstas,_vanduo,_elektra,_dujos_ir_kitas_kuras",
-                      "Būsto_apstatymo,_namų_ūkio_įranga_ir_kasdienė_namų_priežiūra",
-                      "Sveikata",
-                      "Transportas",
-                      "Informacija_ir_ryšiai",
-                      "Poilsis,_sportas_ir_kultūra",
+columns_to_scale <- c("All_household_consumption_expenses_(monthly)",
+                      "Food_and_non-alcoholic_beverages",
+                      "Alcoholic_beverages,_tobacco,_and_drugs",
+                      "Restaurants_and_accommodation_services",
+                      "Insurance_and_financial_services",
+                      "Personal_care,_social_protection,_and_miscellaneous_goods_and_services",
+                      "Clothing_and_footwear",
+                      "Housing,_water,_electricity,_gas,_and_other_fuels",
+                      "Furnishings,_household_equipment,_and_routine_home_maintenance",
+                      "Health",
+                      "Transport",
+                      "Information_and_communication",
+                      "Recreation,_sports,_and_culture",
                       "household_size",
                       "age")
 
 # Scale the selected columns (standardization)
-merger[, intersect(columns_to_scale, names(merger)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger))]
+merger_scaled <- copy(merger)
+merger_scaled[, intersect(columns_to_scale, names(merger_scaled)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger_scaled))]
 
 # creating dummy variables for factors:
-dummy <- dummyVars(" ~ .", data = merger)
-new_data <- data.frame(predict(dummy, newdata = merger))
+dummy <- dummyVars(" ~ .", data = merger_scaled)
+new_data <- data.frame(predict(dummy, newdata = merger_scaled))
 constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
 constant_columns
 new_data <- new_data[, -constant_columns]
@@ -510,165 +472,16 @@ fviz_nbclust(new_data, kmeans, method = "wss")
 
 # Perform K-means
 set.seed(0)
-k2 = kmeans(new_data, centers = 2, nstart = 20)
+k3 <- kmeans(new_data, centers = 3, nstart = 20)
 # Visualize clusters
-fviz_cluster(k2, data = new_data)
+fviz_cluster(k3, data = new_data)
 
 # Evaluate clusters
 # Cluster sizes
-k2$size
+k3$size
 
 # Silhouette score
-ss <- silhouette(k2$cluster, dist(new_data))
-mean(ss[,3])
-
-# Average silhouette score for different number of clusters
-avg_silhouette <- function(k){
-  km <- kmeans(new_data, centers = k, nstart = 20)
-  ss <- silhouette(km$cluster, dist(new_data))
-  return(mean(ss[,3]))
-}
-
-# highest score with 2 clusters
-avg_sil_values <- map_dbl(2:15, avg_silhouette)
-par(mar=c(5, 5, 5, 2))
-plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
-     type = "b", pch = 19, frame = FALSE,
-     xlab = "Number of clusters k",
-     ylab = "Average Silhouette score")
-dev.off()
-
-# ----------------------------------------------------------------------------
-# 4. K-means with reduced data
-# ----------------------------------------------------------------------------
-# creating dummy variables for factors:
-dummy <- dummyVars(" ~ .", data = merger.reduced)
-new_data <- data.frame(predict(dummy, newdata = merger.reduced))
-constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
-constant_columns
-new_data <- new_data[, -constant_columns]
-summary(new_data)
-
-# Finding optimal number of clusters
-# Seems that the optimal number of clusters is 2. 
-# Silhouette
-fviz_nbclust(new_data, kmeans, method = "silhouette")
-# Within sum of squares - Elbow method
-fviz_nbclust(new_data, kmeans, method = "wss")
-# Gap statistic - did not converge for me, takes a really long time
-# fviz_nbclust(new_data, kmeans, method = "gap_stat")
-
-# Perform K-means
-set.seed(0)
-k2 = kmeans(new_data, centers = 2, nstart = 20)
-# Visualize clusters
-fviz_cluster(k2, data = new_data)
-
-# Evaluate clusters
-# Cluster sizes
-k2$size
-
-# Silhouette score
-ss <- silhouette(k2$cluster, dist(new_data))
-mean(ss[,3])
-
-# Average silhouette score for different number of clusters
-avg_silhouette <- function(k){
-  km <- kmeans(new_data, centers = k, nstart = 20)
-  ss <- silhouette(km$cluster, dist(new_data))
-  return(mean(ss[,3]))
-}
-
-# Could try clustering with 2 or 4, but that would yield worse ss
-avg_sil_values <- map_dbl(2:15, avg_silhouette)
-par(mar=c(5, 5, 5, 2))
-plot(2:15, avg_sil_values, main = "Average silhouette score per cluster",
-     type = "b", pch = 19, frame = FALSE,
-     xlab = "Number of clusters k",
-     ylab = "Average Silhouette score")
-dev.off()
-
-# ----------------------------------------------------------------------------
-# 5. K-means with reduced data + PCA
-# ----------------------------------------------------------------------------
-pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
-summary(pca)
-
-var_explained <- pca$sdev^2 / sum(pca$sdev^2)
-
-qplot(c(1:length(var_explained)), var_explained) +
-  geom_line() +
-  xlab("Principal Component") +
-  ylab("Variance explained") +
-  ggtitle("Scree plot") +
-  ylim(0, 1)
-
-# I'll choose first 16 PCs to explain ~99% of variance
-data_pca <- as.data.frame(pca$x[,1:16])
-
-# Choose optimal number of clusters
-# 2 or 3
-fviz_nbclust(data_pca, kmeans, method = "wss")
-# 2
-fviz_nbclust(data_pca, kmeans, method = "silhouette")
-
-# ----------------------------------------------------------------------------
-# Perform K-means with pca transformed data
-set.seed(0)
-k2_pca <- kmeans(data_pca, centers = 2, nstart = 20)
-fviz_cluster(k2_pca, data = data_pca)
-fviz_pca_ind(pca, habillage = k2_pca$cluster, label = "none", addEllipses = TRUE)
-
-k3_pca <- kmeans(data_pca, centers = 3, nstart = 20)
-fviz_cluster(k3_pca, data = data_pca)
-fviz_pca_ind(pca, habillage = k3_pca$cluster, label = "none", addEllipses = TRUE)
-
-# Evaluate clusters
-k2_pca$size
-k3_pca$size
-
-# K-means results seem to be worse with PCA than without.
-ss_pca2 <- silhouette(k2_pca$cluster, dist(data_pca))
-mean(ss_pca2[,3])
-
-ss_pca3 <- silhouette(k3_pca$cluster, dist(data_pca))
-mean(ss_pca3[,3])
-
-# ----------------------------------------------------------------------------
-# 6. K-means with reduced data + standardization
-# ----------------------------------------------------------------------------
-# Scale the selected columns (standardization)
-merger.reduced[, intersect(columns_to_scale, names(merger.reduced)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger.reduced))]
-
-# creating dummy variables for factors:
-dummy <- dummyVars(" ~ .", data = merger.reduced)
-new_data <- data.frame(predict(dummy, newdata = merger.reduced))
-constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
-constant_columns
-new_data <- new_data[, -constant_columns]
-summary(new_data)
-
-# Finding optimal number of clusters
-# Seems that the optimal number of clusters is 2. 
-# Silhouette
-fviz_nbclust(new_data, kmeans, method = "silhouette")
-# Within sum of squares - Elbow method
-fviz_nbclust(new_data, kmeans, method = "wss")
-# Gap statistic - did not converge for me, takes a really long time
-# fviz_nbclust(new_data, kmeans, method = "gap_stat")
-
-# Perform K-means
-set.seed(0)
-k2 = kmeans(new_data, centers = 2, nstart = 20)
-# Visualize clusters
-fviz_cluster(k2, data = new_data)
-
-# Evaluate clusters
-# Cluster sizes
-k2$size
-
-# Silhouette score
-ss <- silhouette(k2$cluster, dist(new_data))
+ss <- silhouette(k3$cluster, dist(new_data))
 mean(ss[,3])
 
 # Average silhouette score for different number of clusters
@@ -689,7 +502,6 @@ dev.off()
 
 # ----------------------------------------------------------------------------
 # DBSCAN with original data
-library(dbscan)
 merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident")]
 dummy <- dummyVars(" ~ .", data = merger)
 new_data <- data.frame(predict(dummy, newdata = merger))
@@ -715,30 +527,60 @@ fviz_cluster(db, data = new_data, stand = FALSE,
              ellipse = TRUE, show.clust.cent = FALSE,
              geom = "point", ggtheme = theme_classic())
 
-clust_result$dbscan2 <- db$cluster
+# ----------------------------------------------------------------------------
+# DBSCAN with original data + PCA
+pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
+summary(pca)
+
+var_explained <- pca$sdev^2 / sum(pca$sdev^2)
+
+qplot(c(1:length(new_data)), var_explained) +
+  geom_line() +
+  xlab("Principal Component") +
+  ylab("Variance explained") +
+  ggtitle("Scree plot") +
+  ylim(0, 1)
+
+# I'll choose first 15 PCs to explain ~72% of variance
+# data_pca <- as.data.frame(-pca$x[,1:15]) # why negative sign is added?
+data_pca <- as.data.frame(pca$x[,1:5])
+
+data_dim <- dim(data_pca)[2]
+kNNdistplot(data_pca, k = data_dim + 1) 
+abline(h = 2, lty=2)
+
+db <- dbscan(data_pca, eps = 2, minPts = data_dim + 1)
+print(db)
+# With standardized data:
+fviz_cluster(db, data = data_pca, stand = TRUE,
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", ggtheme = theme_classic())
+# With not standardized data:
+fviz_cluster(db, data = data_pca, stand = FALSE,
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", ggtheme = theme_classic())
 # ----------------------------------------------------------------------------
 # DBSCAN with original data + sclaed
 
 # Columns to standardize
-columns_to_scale <- c("Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)",
-                      "Maistas_ir_nealkoholiniai_gėrimai",
-                      "Alkoholiniai_gėrimai,_tabakas_ir_narkotikai",
-                      "Švietimo_paslaugos",
-                      "Restoranai_ir_apgyvendinimo_paslaugos",
-                      "Draudimas_ir_finansinės_paslaugos",
-                      "Asmens_priežiūra,_socialinė_apsauga_ir_įvairios_prekės_ir_paslaugos",
-                      "Apranga_ir_avalynė",
-                      "Būstas,_vanduo,_elektra,_dujos_ir_kitas_kuras",
-                      "Būsto_apstatymo,_namų_ūkio_įranga_ir_kasdienė_namų_priežiūra",
-                      "Sveikata",
-                      "Transportas",
-                      "Informacija_ir_ryšiai",
-                      "Poilsis,_sportas_ir_kultūra",
+columns_to_scale <- c("All_household_consumption_expenses_(monthly)",
+                      "Food_and_non-alcoholic_beverages",
+                      "Alcoholic_beverages,_tobacco,_and_drugs",
+                      "Restaurants_and_accommodation_services",
+                      "Insurance_and_financial_services",
+                      "Personal_care,_social_protection,_and_miscellaneous_goods_and_services",
+                      "Clothing_and_footwear",
+                      "Housing,_water,_electricity,_gas,_and_other_fuels",
+                      "Furnishings,_household_equipment,_and_routine_home_maintenance",
+                      "Health",
+                      "Transport",
+                      "Information_and_communication",
+                      "Recreation,_sports,_and_culture",
                       "household_size",
                       "age")
 
 # Scale the selected columns (standardization)
-merger.scaled <- merger
+merger.scaled <- copy(merger)
 merger.scaled <- merger.scaled[, intersect(columns_to_scale, names(merger.scaled)) := lapply(.SD, scale), .SDcols = intersect(columns_to_scale, names(merger.scaled))]
 
 # creating dummy variables for factors:
@@ -751,9 +593,9 @@ summary(new_data)
 
 data_dim <- dim(new_data)[2]
 kNNdistplot(new_data, k = data_dim + 1) 
-abline(h = 7, lty=2)
+abline(h = 20, lty=2)
 
-db <- dbscan(new_data, eps = 7, minPts = data_dim + 1)
+db <- dbscan(new_data, eps = 20, minPts = data_dim + 1)
 print(db)
 # With standardized data:
 fviz_cluster(db, data = new_data, stand = TRUE,
