@@ -270,6 +270,96 @@ individ_uniq <- subset(individ_uniq, select = -c(status_in_house))
 merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident", "Education_services")] 
 summary(merger)
 
+# plots for report--------------------------------------------------------------
+cont.var <- c("All_household_consumption_expenses_(monthly)",
+              "Food_and_non-alcoholic_beverages",
+              "Alcoholic_beverages,_tobacco,_and_drugs",
+              "Restaurants_and_accommodation_services",
+              "Insurance_and_financial_services",
+              "Personal_care,_social_protection,_and_miscellaneous_goods_and_services",
+              "Clothing_and_footwear",
+              "Housing,_water,_electricity,_gas,_and_other_fuels",
+              "Furnishings,_household_equipment,_and_routine_home_maintenance",
+              "Health",
+              "Transport",
+              "Information_and_communication",
+              "Recreation,_sports,_and_culture",
+              "household_size",
+              "age")
+
+title_map <- list(
+  "All_household_consumption_expenses_(monthly)" = "Total expenses",
+  "Food_and_non-alcoholic_beverages" = "Food",
+  "Alcoholic_beverages,_tobacco,_and_drugs" = "Alcohol, tobacco",
+  "Restaurants_and_accommodation_services" = "Hospitality",
+  "Insurance_and_financial_services" = "Financial services",
+  "Personal_care,_social_protection,_and_miscellaneous_goods_and_services" = "Personal care",
+  "Clothing_and_footwear" = "Apparel",
+  "Housing,_water,_electricity,_gas,_and_other_fuels" = "Housing, utilities",
+  "Furnishings,_household_equipment,_and_routine_home_maintenance" = "Home maintenance",
+  "Health" = "Health",
+  "Transport" = "Transport",
+  "Information_and_communication" = "Communication",
+  "Recreation,_sports,_and_culture" = "Recreation",
+  "household_size" = "Household size",
+  "age" = "Age"
+)
+
+par(mfrow = c(ceiling(length(cont.var) / 3), 3)) 
+
+
+for (col in cont.var) {
+  
+  title <- title_map[[col]]
+  
+  
+  if (col == "age") {
+    hist(merger[[col]], 
+         main = title, 
+         xlab = col, 
+         col = "lightblue", 
+         xlim = c(0, 100)) 
+  } else {
+    
+    max_val <- ceiling(max(merger[[col]], na.rm = TRUE)) 
+    hist(merger[[col]], 
+         main = title, 
+         xlab = col, 
+         col = "lightblue", 
+         xlim = c(0, max_val)) 
+  }
+}
+
+par(mfrow = c(1, 1))
+
+# Categorical
+non_cont_vars <- setdiff(names(merger), cont.var)
+
+# Set up layout to display multiple bar plots in one window
+par(mfrow = c(ceiling(length(non_cont_vars) / 3), 3), mar = c(4, 4, 2, 1)) # Layout and margins
+
+for (col in non_cont_vars) {
+  bar_data <- table(merger[[col]]) # Create frequency table for the column
+  
+  # Barplot with no gap between bars and x-axis
+  barplot(bar_data, 
+          main = col, 
+          xlab = "", 
+          ylab = "Count", 
+          col = "lightblue", 
+          border = "black", 
+          ylim = c(0, max(bar_data) * 1.1), # Add 10% padding for clarity
+          space = 0.2) # Keep gaps between bars
+  
+  # Add x-axis line manually to ensure alignment
+  abline(h = 0, col = "black", lwd = 1)
+}
+
+
+# Reset plotting parameters
+par(mfrow = c(1, 1))
+#-------------------------------------------------------------------------------
+
 # ----------------------------------------------------------------------------
 # 1. K-means with original data
 # ----------------------------------------------------------------------------
@@ -502,7 +592,7 @@ dev.off()
 
 # ----------------------------------------------------------------------------
 # DBSCAN with original data
-merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident")]
+merger <- merge(expenditures.data, individ_uniq, by = "hh_ident")[, -c("hh_ident", "Education_services")]
 dummy <- dummyVars(" ~ .", data = merger)
 new_data <- data.frame(predict(dummy, newdata = merger))
 constant_columns <- which(apply(new_data, 2, function(col) length(unique(col)) == 1))
@@ -528,7 +618,7 @@ fviz_cluster(db, data = new_data, stand = FALSE,
              geom = "point", ggtheme = theme_classic())
 
 # ----------------------------------------------------------------------------
-# DBSCAN with original data + PCA
+# DBSCAN with original data + PCA 
 pca <- prcomp(new_data, center = TRUE, scale. = TRUE)
 summary(pca)
 
