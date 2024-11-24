@@ -2,7 +2,8 @@
 rm(list = ls())
 
 # Package name
-package.names <- c("data.table", "dplyr", "readxl", "ggplot2", "randomForest", "reshape2", "caret", "tidyverse", "factoextra", "cluster", "dbscan")
+package.names <- c("data.table", "dplyr", "readxl", "ggplot2", "randomForest", "reshape2", "caret", "tidyverse",
+                   "factoextra", "cluster", "dbscan", "miscset", "cowplot")
 
 # Loading packages
 for (pkg_name in package.names) {
@@ -241,6 +242,127 @@ levels(individ$employment) <- c(1, 2, 3, 4, 5, 6, 0)
 levels(individ$employment_type) <- c(1, 2, 3, 4, 0)
 levels(individ$job_contract) <- c(1, 2, 0)
 
+#-------------------------------------------------------------------------------
+individ.copy <- copy(individ)
+
+title_map <- list(
+  "All_household_consumption_expenses_(monthly)" = "Total expenses",
+  "Food_and_non-alcoholic_beverages" = "Food",
+  "Alcoholic_beverages,_tobacco,_and_drugs" = "Alcohol, tobacco",
+  "Education_services" = "Education",
+  "Restaurants_and_accommodation_services" = "Hospitality",
+  "Insurance_and_financial_services" = "Financial services",
+  "Personal_care,_social_protection,_and_miscellaneous_goods_and_services" = "Personal care",
+  "Clothing_and_footwear" = "Apparel",
+  "Housing,_water,_electricity,_gas,_and_other_fuels" = "Housing, utilities",
+  "Furnishings,_household_equipment,_and_routine_home_maintenance" = "Home maintenance",
+  "Health" = "Health",
+  "Transport" = "Transport",
+  "Information_and_communication" = "Communication",
+  "Recreation,_sports,_and_culture" = "Recreation"
+)
+
+par(mar = c(2, 2, 2, 2)) 
+par(mfrow = c(3, 5))
+
+for (col in colnames(expenditures.data[, -c("hh_ident")])) {
+  
+  title <- ifelse(!is.null(title_map[[col]]), title_map[[col]], col)
+  
+  # Plot the histogram
+  hist(expenditures.data[[col]], 
+       main = title, 
+       xlab = title, 
+       col = "lightblue", 
+       border = "black", 
+       cex.main = 0.8) 
+}
+hist(individ.copy[, 9], main = "Age", 
+     col = "lightblue", 
+     border = "black",
+     cex.main = 0.8)
+
+# Bar plots of categorical values
+mapping <- list(
+  education = c(
+    "1" = "Lower", 
+    "2" = "Intermediate", 
+    "3" = "Higher", 
+    "0" = "Not applicable"
+  ),
+  employment = c(
+    "1" = "Employed person", 
+    "2" = "Unemployed", 
+    "3" = "Retired", 
+    "4" = "Not working due to health issues", 
+    "5" = "Student", 
+    "6" = "Economically inactive", 
+    "0" = "Not applicable"
+  ),
+  gender = c(
+    "1" = "Male", 
+    "2" = "Female"
+  ),
+  employment_type = c(
+    "1" = "Self-employed with employees", 
+    "2" = "Self-employed without employees", 
+    "3" = "Paid employee", 
+    "4" = "Unpaid family business worker", 
+    "0" = "Not applicable"
+  ),
+  job_contract = c(
+    "1" = "Permanent contract", 
+    "2" = "Temporary contract", 
+    "0" = "Not applicable"
+  ),
+  status_in_house = c(
+    "1" = "Head of household", 
+    "2" = "Spouse/partner", 
+    "3" = "Child/stepchild", 
+    "4" = "Parent/parent-in-law", 
+    "5" = "Other relative", 
+    "6" = "Non-relative"
+  ),
+  marital = c(
+    "1" = "Single", 
+    "2" = "Married", 
+    "3" = "Widowed", 
+    "4" = "Divorced"
+  )
+)
+
+# Function to relabel x-axis
+relabel_plot <- function(plot, col) {
+  plot +
+    scale_x_discrete(labels = mapping[[col]]) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate for readability
+}
+
+# Function to format column names
+format_column_name <- function(col) {
+  gsub("_", " ", tools::toTitleCase(col))
+}
+
+# Define the specific order of columns
+ordered_columns <- c("education", "gender", "marital", "employment", "employment_type", "job_contract", "status_in_house")
+
+# Create bar plots with consistent visual dimensions
+plots <- lapply(ordered_columns, function(col) {
+  ggplot(individ.copy, aes_string(col)) +
+    geom_bar(fill = "lightblue", color = "black", size = 0.2) +
+    theme_classic() +
+    xlab(format_column_name(col)) +
+    ylab("Count") +
+    scale_x_discrete(labels = mapping[[col]]) +
+    theme(
+      axis.text.x = element_text(angle = 65, hjust = 1),
+      plot.margin = unit(c(1, 1, 1, 1), "cm") # Adjust margins for uniformity
+    )
+})
+
+# Arrange plots in a uniform grid
+cowplot::plot_grid(plotlist = plots, ncol = 4, align = "hv")
+#-------------------------------------------------------------------------------
 # There are multiple subjects from one household, but there is only one line for expenses
 # Creating a new variable "household_size" to denote how many subjects participated from the same 
 # household. This will ~roughly~ be the num of dependents. 
@@ -305,7 +427,7 @@ title_map <- list(
   "age" = "Age"
 )
 
-par(mfrow = c(ceiling(length(cont.var) / 3), 3)) 
+par(mfrow = c(ceiling(length(cont.var) / 5), 5)) 
 
 
 for (col in cont.var) {
@@ -335,25 +457,24 @@ par(mfrow = c(1, 1))
 # Categorical
 non_cont_vars <- setdiff(names(merger), cont.var)
 
-# Set up layout to display multiple bar plots in one window
-par(mfrow = c(ceiling(length(non_cont_vars) / 3), 3), mar = c(4, 4, 2, 1)) # Layout and margins
+# Create bar plots with consistent visual dimensions
+mapping <- mapping[!names(mapping) %in% "status_in_house"]
+ordered_columns <- ordered_columns[ordered_columns != "status_in_house"]
+plots <- lapply(ordered_columns, function(col) {
+  ggplot(merger[, ..non_cont_vars], aes_string(col)) +
+    geom_bar(fill = "lightblue", color = "black", size = 0.2) +
+    theme_classic() +
+    xlab(format_column_name(col)) +
+    ylab("Count") +
+    scale_x_discrete(labels = mapping[[col]]) +
+    theme(
+      axis.text.x = element_text(angle = 65, hjust = 1),
+      plot.margin = unit(c(1, 1, 1, 1), "cm") # Adjust margins for uniformity
+    )
+})
 
-for (col in non_cont_vars) {
-  bar_data <- table(merger[[col]]) # Create frequency table for the column
-  
-  # Barplot with no gap between bars and x-axis
-  barplot(bar_data, 
-          main = col, 
-          xlab = "", 
-          ylab = "Count", 
-          col = "lightblue", 
-          border = "black", 
-          ylim = c(0, max(bar_data) * 1.1), # Add 10% padding for clarity
-          space = 0.2) # Keep gaps between bars
-  
-  # Add x-axis line manually to ensure alignment
-  abline(h = 0, col = "black", lwd = 1)
-}
+# Arrange plots in a uniform grid
+cowplot::plot_grid(plotlist = plots, ncol = 4, align = "hv")
 
 
 # Reset plotting parameters
