@@ -166,9 +166,8 @@ summ.stats <- data.table(summary(expenditures.data[, -c("hh_ident")]))
 # Correlation between categories
 cor.result <- cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)"), with = FALSE], use = "complete.obs")
 # Checking correlation - there's no multicollinearity exceeding 50%.
-<<<<<<< Updated upstream
-findCorrelation(cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), cutoff = .5)
-=======
+
+
 findCorrelation(cor(expenditures.data[, -c("hh_ident")]))
 library(corrplot)
 copy_names = colnames(expenditures.data[, -"hh_ident"])
@@ -200,7 +199,6 @@ hist(individ[, 9], main = "Age",
      col = "lightblue", 
      border = "black",
      cex.main = 1.2)
->>>>>>> Stashed changes
 
 # 7)
 expenditures.prop = copy(expenditures.data)
@@ -277,17 +275,15 @@ individ <- subset(individual.data, select = -c(`Motinos_gimimo_šalis`,
 
 individ <- as.data.frame(individ)
 
-<<<<<<< Updated upstream
-# Renaming for easier access
-orig_names = colnames(copy(individ))
-setnames(individ, colnames(individ), c("education", "employment", "hh_ident",
-                                       "eiles_nr", "gender", "employment_type",
-                                       "job_contract", "status_in_house",
-                                       "marital", "age"))
+# # Renaming for easier access
+# orig_names = colnames(copy(individ))
+# setnames(individ, colnames(individ), c("education", "employment", "hh_ident",
+#                                        "eiles_nr", "gender", "employment_type",
+#                                        "job_contract", "status_in_house",
+#                                        "marital", "age"))
 
-=======
 summary(individ)
->>>>>>> Stashed changes
+
 # Which columns should be changed to factors
 factor_cols <- c("education", "employment", "gender", "employment_type",
                  "job_contract", "status_in_house",
