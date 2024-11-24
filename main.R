@@ -101,6 +101,19 @@ for (col in colnames(expenditures.data[, -c("hh_ident")])) {
        border = "black",
        cex.main = 0.8)
 }
+hist(individ[, 9], main = "Age", 
+     col = "lightblue", 
+     border = "black",
+     cex.main = 0.8)
+
+library(miscset)
+ggplotGrid(ncol = 4,
+           lapply(colnames(individ[, -c(3, 9)]),
+                  function(col) {
+                    ggplot(individ, aes_string(col)) + 
+                      geom_bar(fill = "lightblue", color = "black", size=0.2) +
+                      theme_classic()
+                  }))
 
 
 selected_cols <- colnames(expenditures.data)[!colnames(expenditures.data) %in% "hh_ident"][1:14]
@@ -153,7 +166,41 @@ summ.stats <- data.table(summary(expenditures.data[, -c("hh_ident")]))
 # Correlation between categories
 cor.result <- cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)"), with = FALSE], use = "complete.obs")
 # Checking correlation - there's no multicollinearity exceeding 50%.
+<<<<<<< Updated upstream
 findCorrelation(cor(expenditures.data[, -c("hh_ident", "Visos_namų_ūkio_vartojimo_išlaidos_(mėnesinės)")]), cutoff = .5)
+=======
+findCorrelation(cor(expenditures.data[, -c("hh_ident")]))
+library(corrplot)
+copy_names = colnames(expenditures.data[, -"hh_ident"])
+copy_names
+short_name_vec = c("Total expenses", "Food", "Alcohol, tobacco", "Education", "Hospitality", "Financial services",
+                   "Personal care", "Apparel", "Housing, utilities", "Home maintenance", "Health", "Transport",
+                   "Communication", "Recreation")
+exp_copy = copy(expenditures.data[, -"hh_ident"])
+setnames(exp_copy, colnames(exp_copy), short_name_vec)
+exp_copy
+cor_exp = cor(exp_copy)
+cor_exp
+dev.off()
+corrplot(cor_exp, "square", "lower")
+
+
+par(mar = c(2, 2, 2, 2)) 
+par(mfrow = c(3, 5))
+
+for (col in colnames(exp_copy)) {
+  hist(exp_copy[[col]], 
+       main = col, 
+       xlab = col, 
+       col = "lightblue", 
+       border = "black",
+       cex.main = 1.2)
+}
+hist(individ[, 9], main = "Age", 
+     col = "lightblue", 
+     border = "black",
+     cex.main = 1.2)
+>>>>>>> Stashed changes
 
 # 7)
 expenditures.prop = copy(expenditures.data)
@@ -230,6 +277,7 @@ individ <- subset(individual.data, select = -c(`Motinos_gimimo_šalis`,
 
 individ <- as.data.frame(individ)
 
+<<<<<<< Updated upstream
 # Renaming for easier access
 orig_names = colnames(copy(individ))
 setnames(individ, colnames(individ), c("education", "employment", "hh_ident",
@@ -237,6 +285,9 @@ setnames(individ, colnames(individ), c("education", "employment", "hh_ident",
                                        "job_contract", "status_in_house",
                                        "marital", "age"))
 
+=======
+summary(individ)
+>>>>>>> Stashed changes
 # Which columns should be changed to factors
 factor_cols <- c("education", "employment", "gender", "employment_type",
                  "job_contract", "status_in_house",
