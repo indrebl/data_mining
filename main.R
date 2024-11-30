@@ -555,8 +555,44 @@ importance_df$Feature <- rownames(importance_df)  # Add feature names as a new c
 # Now, importance_df should have 'Feature' and 'MeanDecreaseGini' columns
 colnames(importance_df) <- c("MeanDecreaseGini", "Feature")  # Rename columns for clarity
 
-# Sort importance by 'MeanDecreaseGini'
 importance_df <- importance_df[order(importance_df$MeanDecreaseGini, decreasing = TRUE), ]
+
+
+# Define groups of related dummy variables
+variable_groups <- list(
+"education" = c("education.1", "education.2", "education.3"),
+"employment" = c("employment.1", "employment.2", "employment.3", "employment.4", "employment.5", "employment.6"),
+"gender" = c("gender.1", "gender.2"),
+"employment_type" = c("employment_type.1", "employment_type.2", "employment_type.3", "employment_type.0"),
+"job_contract" = c("job_contract.1", "job_contract.2", "job_contract.0"),
+"marital" = c("marital.1", "marital.2", "marital.3", "marital.4")
+)
+# Sum importances for grouped variables
+summed_importance <- importance_df %>%
+rowwise() %>%
+mutate(Feature = case_when(
+Feature %in% variable_groups$education ~ "education",
+Feature %in% variable_groups$employment ~ "employment",
+Feature %in% variable_groups$gender ~ "gender",
+Feature %in% variable_groups$employment_type ~ "employment_type",
+Feature %in% variable_groups$job_contract ~ "job_contract",
+Feature %in% variable_groups$marital ~ "marital",
+TRUE ~ Feature # Keep other variables as their own group
+)) %>%
+group_by(Feature) %>%
+summarise(MeanDecreaseGini = sum(MeanDecreaseGini)) %>%
+ungroup()
+# Sort importance by 'MeanDecreaseGini'
+summed_importance <- summed_importance[order(summed_importance$MeanDecreaseGini, decreasing = TRUE), ]
+# Plotting feature importance
+ggplot(summed_importance, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
+geom_bar(stat = "identity", fill = "steelblue") +
+coord_flip() +
+labs(title = "Feature Importance for K-means Clusters (Random Forest)",
+x = "Features",
+y = "Importance (Mean Decrease in Gini)") +
+theme_minimal()
+
 
 # Plotting feature importance
 ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
@@ -568,7 +604,7 @@ ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecrea
   theme_minimal()
 
 #  Choose the top N important features (e.g., top 5 features)
-top_features <- rownames(importance_df)[1:16]  # Modify this number as needed (e.g., top 5 features)
+top_features <- rownames(importance_df)[1:9]  # Modify this number as needed (e.g., top 5 features)
 
 # Add cluster labels to the original data (or copy)
 new_data_copy$Cluster <- as.factor(k3_copy$cluster)
