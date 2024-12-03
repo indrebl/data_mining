@@ -543,8 +543,9 @@ new_data_copy$Cluster <- as.factor(k3_copy$cluster)
 # Train random forest model to predict clusters based on other features
 rf_model <- randomForest(Cluster ~ ., data = new_data_copy, importance = TRUE, ntree = 200)
 
+
 # Extract feature importance
-importance_rf <- importance(rf_model, type = 2)  # type = 2 gives Mean Decrease in Accuracy
+importance_rf <- importance(rf_model, type = 1)  # type = 2 gives Mean Decrease in Accuracy
 
 # Print the importance to check
 print(importance_rf)
@@ -553,58 +554,58 @@ importance_df <- as.data.frame(importance_rf)  # Convert importance to data fram
 importance_df$Feature <- rownames(importance_df)  # Add feature names as a new column
 
 # Now, importance_df should have 'Feature' and 'MeanDecreaseGini' columns
-colnames(importance_df) <- c("MeanDecreaseGini", "Feature")  # Rename columns for clarity
+colnames(importance_df) <- c("MeanDecreaseAccuracy", "Feature")  # Rename columns for clarity
 
-importance_df <- importance_df[order(importance_df$MeanDecreaseGini, decreasing = TRUE), ]
+importance_df <- importance_df[order(importance_df$MeanDecreaseAccuracy, decreasing = TRUE), ]
 
 
 # Define groups of related dummy variables
 variable_groups <- list(
-"education" = c("education.1", "education.2", "education.3"),
-"employment" = c("employment.1", "employment.2", "employment.3", "employment.4", "employment.5", "employment.6"),
-"gender" = c("gender.1", "gender.2"),
-"employment_type" = c("employment_type.1", "employment_type.2", "employment_type.3", "employment_type.0"),
-"job_contract" = c("job_contract.1", "job_contract.2", "job_contract.0"),
-"marital" = c("marital.1", "marital.2", "marital.3", "marital.4")
+  "education" = c("education.1", "education.2", "education.3"),
+  "employment" = c("employment.1", "employment.2", "employment.3", "employment.4", "employment.5", "employment.6"),
+  "gender" = c("gender.1", "gender.2"),
+  "employment_type" = c("employment_type.1", "employment_type.2", "employment_type.3", "employment_type.0"),
+  "job_contract" = c("job_contract.1", "job_contract.2", "job_contract.0"),
+  "marital" = c("marital.1", "marital.2", "marital.3", "marital.4")
 )
 # Sum importances for grouped variables
 summed_importance <- importance_df %>%
-rowwise() %>%
-mutate(Feature = case_when(
-Feature %in% variable_groups$education ~ "education",
-Feature %in% variable_groups$employment ~ "employment",
-Feature %in% variable_groups$gender ~ "gender",
-Feature %in% variable_groups$employment_type ~ "employment_type",
-Feature %in% variable_groups$job_contract ~ "job_contract",
-Feature %in% variable_groups$marital ~ "marital",
-TRUE ~ Feature # Keep other variables as their own group
-)) %>%
-group_by(Feature) %>%
-summarise(MeanDecreaseGini = sum(MeanDecreaseGini)) %>%
-ungroup()
-# Sort importance by 'MeanDecreaseGini'
-summed_importance <- summed_importance[order(summed_importance$MeanDecreaseGini, decreasing = TRUE), ]
+  rowwise() %>%
+  mutate(Feature = case_when(
+    Feature %in% variable_groups$education ~ "education",
+    Feature %in% variable_groups$employment ~ "employment",
+    Feature %in% variable_groups$gender ~ "gender",
+    Feature %in% variable_groups$employment_type ~ "employment_type",
+    Feature %in% variable_groups$job_contract ~ "job_contract",
+    Feature %in% variable_groups$marital ~ "marital",
+    TRUE ~ Feature # Keep other variables as their own group
+  )) %>%
+  group_by(Feature) %>%
+  summarise(MeanDecreaseAccuracy = sum(MeanDecreaseAccuracy)) %>%
+  ungroup()
+# Sort importance by 'MeanDecreaseAccuracy'
+summed_importance <- summed_importance[order(summed_importance$MeanDecreaseAccuracy, decreasing = TRUE), ]
 # Plotting feature importance
-ggplot(summed_importance, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
-geom_bar(stat = "identity", fill = "steelblue") +
-coord_flip() +
-labs(title = "Feature Importance for K-means Clusters (Random Forest)",
-x = "Features",
-y = "Importance (Mean Decrease in Gini)") +
-theme_minimal()
-
-
-# Plotting feature importance
-ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
+ggplot(summed_importance, aes(x = reorder(Feature, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +
   labs(title = "Feature Importance for K-means Clusters (Random Forest)",
        x = "Features",
-       y = "Importance (Mean Decrease in Gini)") +
+       y = "Importance (Mean Decrease in Accuracy)") +
   theme_minimal()
 
+
+# # Plotting feature importance
+# ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+#   geom_bar(stat = "identity", fill = "steelblue") +
+#   coord_flip() +
+#   labs(title = "Feature Importance for K-means Clusters (Random Forest)",
+#        x = "Features",
+#        y = "Importance (Mean Decrease in Accuracy)") +
+#   theme_minimal()
+
 #  Choose the top N important features (e.g., top 5 features)
-top_features <- rownames(importance_df)[1:9]  # Modify this number as needed (e.g., top 5 features)
+top_features <- rownames(importance_df)[1:12]  # Modify this number as needed (e.g., top 5 features)
 
 # Add cluster labels to the original data (or copy)
 new_data_copy$Cluster <- as.factor(k3_copy$cluster)
@@ -623,6 +624,98 @@ ggplot(data_long, aes(x = Cluster, y = Value, fill = Cluster)) +
        x = "Cluster",
        y = "Feature Value") +
   theme_minimal()
+
+  
+# Extract relevant groups from variable_groups
+employment_columns <- variable_groups$employment
+employment_type_columns <- variable_groups$employment_type
+marital_columns <- variable_groups$marital
+
+# Ensure Cluster is treated as a factor (if not already)
+new_data_copy$Cluster <- as.factor(new_data_copy$Cluster)
+
+# Function to calculate relative ratios for a group of columns
+calculate_ratios <- function(data, group_columns, cluster_column = "Cluster") {
+  ratios <- data.frame(Cluster = character(),
+                       Variable = character(),
+                       RelativeRatio = numeric())
+  
+  for (cluster in levels(data[[cluster_column]])) {
+    cluster_data <- data[data[[cluster_column]] == cluster, group_columns]
+    category_totals <- colSums(cluster_data, na.rm = TRUE)
+    total <- sum(category_totals)
+    
+    for (var in names(category_totals)) {
+      relative_ratio <- category_totals[var] / total
+      ratios <- rbind(ratios, data.frame(
+        Cluster = cluster,
+        Variable = var,
+        RelativeRatio = relative_ratio
+      ))
+    }
+  }
+  
+  return(ratios)
+}
+
+# Calculate ratios for each group
+employment_ratios <- calculate_ratios(new_data_copy, employment_columns)
+employment_type_ratios <- calculate_ratios(new_data_copy, employment_type_columns)
+marital_ratios <- calculate_ratios(new_data_copy, marital_columns)
+
+# Plotting function for categorical variables
+plot_ratios <- function(ratios, title) {
+  ggplot(ratios, aes(x = Variable, y = RelativeRatio, fill = Cluster)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(title = title,
+         x = "Variable",
+         y = "Relative Ratio") +
+    theme_minimal() +
+    scale_fill_discrete(name = "Cluster") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+# Create a mapping for employment variables with their English meanings
+employment_labels <- c(
+  "employment.1" = "Employed person",
+  "employment.2" = "Unemployed",
+  "employment.3" = "Old-age or early retirement pensioner",
+  "employment.4" = "Person not working due to long-term health condition",
+  "employment.5" = "Student or pupil",
+  "employment.6" = "Homemaker or other economically inactive person"
+)
+
+# Update the plotting function to replace variable names with labels
+plot_ratios_with_labels <- function(ratios, labels, title) {
+  ratios$Variable <- factor(ratios$Variable, levels = names(labels), labels = labels)
+  
+  ggplot(ratios, aes(x = Variable, y = RelativeRatio, fill = Cluster)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    labs(title = title,
+         x = "Category",
+         y = "Relative Ratio") +
+    theme_minimal() +
+    scale_fill_discrete(name = "Cluster") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+# Plot graphs with updated labels for employment
+plot_employment <- plot_ratios_with_labels(employment_ratios, employment_labels, 
+                                           "Relative Ratios of Employment Categories per Cluster")
+
+# The employment_type and marital plots remain unchanged as they have no translations
+plot_employment_type <- plot_ratios(employment_type_ratios, "Relative Ratios of Employment Types per Cluster")
+plot_marital <- plot_ratios(marital_ratios, "Relative Ratios of Marital Status per Cluster")
+
+# Display the plots
+print(plot_employment)
+print(plot_employment_type)
+print(plot_marital)
+
+
+  
+
+
 
 # Some notes on code - in the pre-processing step near zero variance 
 # could be deleted. Also, consider normalizing - scaling and centering - 
