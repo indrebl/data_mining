@@ -699,6 +699,17 @@ plot_ratios_with_labels <- function(ratios, labels, title) {
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
+# Create a mapping for employment variables with their English meanings
+employment_labels <- c(
+  "employment.1" = "Employed",
+  "employment.2" = "Unemployed",
+  "employment.3" = "Pensioner (age)",
+  "employment.4" = "Not working (health)",
+  "employment.5" = "Student",
+  "employment.6" = "Homemaker etc."
+)
+
+
 # Plot graphs with updated labels for employment
 plot_employment <- plot_ratios_with_labels(employment_ratios, employment_labels, 
                                            "Relative Ratios of Employment Categories per Cluster")
