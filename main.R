@@ -3,7 +3,7 @@ rm(list = ls())
 
 # Package name
 package.names <- c("data.table", "dplyr", "readxl", "ggplot2", "randomForest", "reshape2", "caret", "tidyverse",
-                   "factoextra", "cluster", "dbscan", "miscset", "cowplot")
+                   "factoextra", "cluster", "dbscan", "miscset", "cowplot", "gridExtra")
 
 # Loading packages
 for (pkg_name in package.names) {
@@ -630,6 +630,7 @@ ggplot(data_long, aes(x = Cluster, y = Value, fill = Cluster)) +
 employment_columns <- variable_groups$employment
 employment_type_columns <- variable_groups$employment_type
 marital_columns <- variable_groups$marital
+education_columns <- variable_groups$education
 
 # Ensure Cluster is treated as a factor (if not already)
 new_data_copy$Cluster <- as.factor(new_data_copy$Cluster)
@@ -662,7 +663,7 @@ calculate_ratios <- function(data, group_columns, cluster_column = "Cluster") {
 employment_ratios <- calculate_ratios(new_data_copy, employment_columns)
 employment_type_ratios <- calculate_ratios(new_data_copy, employment_type_columns)
 marital_ratios <- calculate_ratios(new_data_copy, marital_columns)
-
+education_ratios <- calculate_ratios(new_data_copy, education_columns)
 # Plotting function for categorical variables
 plot_ratios <- function(ratios, title) {
   ggplot(ratios, aes(x = Variable, y = RelativeRatio, fill = Cluster)) +
@@ -674,16 +675,6 @@ plot_ratios <- function(ratios, title) {
     scale_fill_discrete(name = "Cluster") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
-
-# Create a mapping for employment variables with their English meanings
-employment_labels <- c(
-  "employment.1" = "Employed person",
-  "employment.2" = "Unemployed",
-  "employment.3" = "Old-age or early retirement pensioner",
-  "employment.4" = "Person not working due to long-term health condition",
-  "employment.5" = "Student or pupil",
-  "employment.6" = "Homemaker or other economically inactive person"
-)
 
 # Update the plotting function to replace variable names with labels
 plot_ratios_with_labels <- function(ratios, labels, title) {
@@ -703,25 +694,84 @@ plot_ratios_with_labels <- function(ratios, labels, title) {
 employment_labels <- c(
   "employment.1" = "Employed",
   "employment.2" = "Unemployed",
-  "employment.3" = "Pensioner (age)",
-  "employment.4" = "Not working (health)",
+  "employment.3" = "Retired\npensioner",
+  "employment.4" = "Not working\nhealth",
   "employment.5" = "Student",
   "employment.6" = "Homemaker etc."
 )
 
 
+# Bar plots of categorical values
+education_labels = c(
+  "education.1" = "Lower", 
+  "education.2" = "Intermediate", 
+  "education.3" = "Higher", 
+  "education.0" = "Not applicable"
+)
+
+gender_labels = c(
+  "gender.1" = "Male", 
+  "gender.2" = "Female"
+)
+employment_type_labels = c(
+  "employment_type.1" = "Self-emp.\nw/ employees", 
+  "employment_type.2" = "Self-emp.\nno employees", 
+  "employment_type.3" = "Paid employee", 
+  "employment_type.4" = "Unpaid family business worker", 
+  "employment_type.0" = "Not applicable"
+)
+
+job_contract_labels = c(
+  "1" = "Permanent contract", 
+  "2" = "Temporary contract", 
+  "0" = "Not applicable"
+)
+
+status_in_house_labels = c(
+  "1" = "Head of household", 
+  "2" = "Spouse/partner", 
+  "3" = "Child/stepchild", 
+  "4" = "Parent/parent-in-law", 
+  "5" = "Other relative", 
+  "6" = "Non-relative"
+)
+
+marital_labels = c(
+  "marital.1" = "Single", 
+  "marital.2" = "Married", 
+  "marital.3" = "Widowed", 
+  "marital.4" = "Divorced"
+)
+
+
+
+
+
 # Plot graphs with updated labels for employment
-plot_employment <- plot_ratios_with_labels(employment_ratios, employment_labels, 
+plot_employment <- plot_ratios_with_labels(employment_ratios, 
+                                           employment_labels, 
                                            "Relative Ratios of Employment Categories per Cluster")
 
 # The employment_type and marital plots remain unchanged as they have no translations
-plot_employment_type <- plot_ratios(employment_type_ratios, "Relative Ratios of Employment Types per Cluster")
-plot_marital <- plot_ratios(marital_ratios, "Relative Ratios of Marital Status per Cluster")
+plot_employment_type <- plot_ratios_with_labels(employment_type_ratios, 
+                                                employment_type_labels,
+                                                "Relative Ratios of Employment Types per Cluster")
+plot_marital <- plot_ratios_with_labels(marital_ratios, 
+                                        marital_labels,
+                                        "Relative Ratios of Marital Status per Cluster")
+plot_education <- plot_ratios_with_labels(education_ratios, 
+                                        education_labels,
+                                        "Relative Ratios of Education per Cluster")
 
-# Display the plots
-print(plot_employment)
-print(plot_employment_type)
-print(plot_marital)
+# # Display the plots
+# print(plot_employment)
+# print(plot_employment_type)
+# print(plot_marital)
+# print(plot_education)
+
+# Arrange the plots in a 2x2 grid
+grid.arrange(plot_employment, plot_employment_type, plot_marital, plot_education, 
+             nrow = 2, ncol = 2)
 
 
   
