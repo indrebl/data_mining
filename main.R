@@ -572,17 +572,59 @@ variable_groups <- list(
 summed_importance <- importance_df %>%
   rowwise() %>%
   mutate(Feature = case_when(
-    Feature %in% variable_groups$education ~ "education",
-    Feature %in% variable_groups$employment ~ "employment",
-    Feature %in% variable_groups$gender ~ "gender",
-    Feature %in% variable_groups$employment_type ~ "employment_type",
-    Feature %in% variable_groups$job_contract ~ "job_contract",
-    Feature %in% variable_groups$marital ~ "marital",
+    Feature %in% variable_groups$education ~ "Education",
+    Feature %in% variable_groups$employment ~ "Employment",
+    Feature %in% variable_groups$gender ~ "Gender",
+    Feature %in% variable_groups$employment_type ~ "Employment_type",
+    Feature %in% variable_groups$job_contract ~ "Job_contract",
+    Feature %in% variable_groups$marital ~ "Marital",
     TRUE ~ Feature # Keep other variables as their own group
   )) %>%
   group_by(Feature) %>%
   summarise(MeanDecreaseAccuracy = sum(MeanDecreaseAccuracy)) %>%
   ungroup()
+
+# changing titles - addition
+library(stringdist) 
+
+new_data_names_map = list(
+  "X.All_household_consumption_expenses_.monthly.." = "Total expenses",
+  "X.Food_and_non.alcoholic_beverages." = "Food",
+  "X.Alcoholic_beverages._tobacco._and_drugs." = "Alcohol, tobacco",
+  "Restaurants_and_accommodation_services" = "Hospitality",
+  "Insurance_and_financial_services" = "Financial services",
+  "X.Personal_care._social_protection._and_miscellaneous_goods_and_services." = "Personal care",
+  "Clothing_and_footwear" = "Apparel",
+  "X.Housing._water._electricity._gas._and_other_fuels." = "Housing, utilities",
+  "X.Furnishings._household_equipment._and_routine_home_maintenance." = "Home maintenance",
+  "Health" = "Health",
+  "Transport" = "Transport",
+  "Information_and_communication" = "Communication",
+  "X.Recreation._sports._and_culture." = "Recreation",
+  "household_size" = "Household size",
+  "age" = "Age"
+)
+
+# Function to map feature names approximately
+map_feature_names <- function(feature, new_data_names_map) {
+  
+  similar_name <- names(new_data_names_map)[which.min(stringdist(feature, names(new_data_names_map)))]
+  
+  if (stringdist(feature, similar_name) < 5) {
+    return(new_data_names_map[[similar_name]])
+  } else {
+    return(feature)
+  }
+}
+
+
+summed_importance$Feature <- sapply(
+  summed_importance$Feature,
+  function(feature) map_feature_names(feature, new_data_names_map)
+)
+
+# Continue with the same code
+
 # Sort importance by 'MeanDecreaseAccuracy'
 summed_importance <- summed_importance[order(summed_importance$MeanDecreaseAccuracy, decreasing = TRUE), ]
 # Plotting feature importance
@@ -612,6 +654,24 @@ new_data_copy$Cluster <- as.factor(k3_copy$cluster)
 
 # Filter the data to include only the top important features and Cluster
 data_for_boxplots <- new_data_copy[, c(top_features, "Cluster")]
+
+# test
+colnames(data_for_boxplots)
+setnames(data_for_boxplots, colnames(data_for_boxplots), c("Total expenses",
+                                                           "Food",
+                                                           "Transport",
+                                                           "Health",
+                                                           "Apparel",
+                                                           "Housing, utilities",
+                                                           "Home maintenance",
+                                                           "Recreation",
+                                                           "Communication",
+                                                           "Hospitality",
+                                                           "Age",
+                                                           "Personal care",
+                                                           "Cluster"
+                                                           ))
+#------
 
 # Reshape the data into a long format for ggplot (melt the data)
 data_long <- melt(data_for_boxplots, id.vars = "Cluster", variable.name = "Feature", value.name = "Value")
@@ -911,6 +971,7 @@ constant_columns
 new_data <- new_data[, -constant_columns]
 summary(new_data)
 
+
 # Pang Ning book 528p
 # https://www.sefidian.com/2022/12/18/how-to-determine-epsilon-and-minpts-parameters-of-dbscan-clustering/
 data_dim <- dim(new_data)[2]
@@ -1006,5 +1067,20 @@ fviz_cluster(db, data = new_data, stand = TRUE,
 fviz_cluster(db, data = new_data, stand = FALSE,
              ellipse = TRUE, show.clust.cent = FALSE,
              geom = "point", ggtheme = theme_classic())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
