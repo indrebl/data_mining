@@ -725,31 +725,44 @@ employment_type_ratios <- calculate_ratios(new_data_copy, employment_type_column
 marital_ratios <- calculate_ratios(new_data_copy, marital_columns)
 education_ratios <- calculate_ratios(new_data_copy, education_columns)
 # Plotting function for categorical variables
-plot_ratios <- function(ratios, title) {
-  ggplot(ratios, aes(x = Variable, y = RelativeRatio, fill = Cluster)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    labs(title = title,
-         x = "Variable",
-         y = "Relative Ratio") +
-    theme_minimal() +
-    scale_fill_discrete(name = "Cluster") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-}
-
-# Update the plotting function to replace variable names with labels
-plot_ratios_with_labels <- function(ratios, labels, title) {
+plot_ratios_with_labels_stacked_by_cluster <- function(ratios, labels, title) {
+  # Remove Cluster 0
+  ratios <- ratios[ratios$Cluster != 0, ]
+  
+  # Filter out rows where RelativeRatio == 0
+  ratios <- ratios[ratios$RelativeRatio > 0, ]
+  
+  # Ensure Variable has all levels and update labels
   ratios$Variable <- factor(ratios$Variable, levels = names(labels), labels = labels)
   
-  ggplot(ratios, aes(x = Variable, y = RelativeRatio, fill = Cluster)) +
-    geom_bar(stat = "identity", position = "dodge") +
-    labs(title = title,
-         x = "Category",
-         y = "Relative Ratio") +
+  # Check if the data contains at least one row to plot
+  if (nrow(ratios) == 0) {
+    stop("No data to plot after filtering. Check the ratios dataset.")
+  }
+  
+  # Plot the stacked bar chart
+  ggplot(ratios, aes(x = Cluster, y = RelativeRatio, fill = Variable)) +
+    geom_bar(stat = "identity", position = "fill") + # Stacked bar chart with proportions
+    geom_text(
+      aes(label = ifelse(RelativeRatio > 0.05, round(RelativeRatio, 2), "")), # Display labels for significant values
+      position = position_fill(vjust = 0.5), 
+      size = 3.5, # Increase text size for better readability
+      color = "black"  # Change text color for better contrast
+    ) +
+    labs(
+      title = title,
+      x = "Cluster",
+      y = "Proportion (Ratio)"
+    ) +
     theme_minimal() +
-    scale_fill_discrete(name = "Cluster") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    scale_fill_discrete(name = "Category") + # Update legend to show valid categories
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5), # Center x-axis text
+      legend.position = "right", # Move legend to the right side
+      legend.text = element_text(size = 9), # Adjust legend text size
+      legend.title = element_text(size = 10) # Adjust legend title size
+    )
 }
-
 # Create a mapping for employment variables with their English meanings
 employment_labels <- c(
   "employment.1" = "Employed",
@@ -759,7 +772,6 @@ employment_labels <- c(
   "employment.5" = "Student",
   "employment.6" = "Homemaker etc."
 )
-
 
 # Bar plots of categorical values
 education_labels = c(
@@ -808,18 +820,18 @@ marital_labels = c(
 
 
 # Plot graphs with updated labels for employment
-plot_employment <- plot_ratios_with_labels(employment_ratios, 
+plot_employment <- plot_ratios_with_labels_stacked_by_cluster(employment_ratios, 
                                            employment_labels, 
                                            "Relative Ratios of Employment Categories per Cluster")
 
 # The employment_type and marital plots remain unchanged as they have no translations
-plot_employment_type <- plot_ratios_with_labels(employment_type_ratios, 
+plot_employment_type <- plot_ratios_with_labels_stacked_by_cluster(employment_type_ratios, 
                                                 employment_type_labels,
                                                 "Relative Ratios of Employment Types per Cluster")
-plot_marital <- plot_ratios_with_labels(marital_ratios, 
+plot_marital <- plot_ratios_with_labels_stacked_by_cluster(marital_ratios, 
                                         marital_labels,
                                         "Relative Ratios of Marital Status per Cluster")
-plot_education <- plot_ratios_with_labels(education_ratios, 
+plot_education <- plot_ratios_with_labels_stacked_by_cluster(education_ratios, 
                                         education_labels,
                                         "Relative Ratios of Education per Cluster")
 
@@ -832,10 +844,6 @@ plot_education <- plot_ratios_with_labels(education_ratios,
 # Arrange the plots in a 2x2 grid
 grid.arrange(plot_employment, plot_employment_type, plot_marital, plot_education, 
              nrow = 2, ncol = 2)
-
-
-  
-
 
 
 # Some notes on code - in the pre-processing step near zero variance 
@@ -1003,24 +1011,345 @@ qplot(c(1:length(new_data)), var_explained) +
   ggtitle("Scree plot") +
   ylim(0, 1)
 
-# I'll choose first 15 PCs to explain ~72% of variance
-# data_pca <- as.data.frame(-pca$x[,1:15]) # why negative sign is added?
-data_pca <- as.data.frame(pca$x[,1:5])
+data_pca <- as.data.frame(pca$x[,1:14])
 
 data_dim <- dim(data_pca)[2]
 kNNdistplot(data_pca, k = data_dim + 1) 
-abline(h = 2, lty=2)
+abline(h = 3, lty=2)
+title("k-NN distance plot")
 
-db <- dbscan(data_pca, eps = 2, minPts = data_dim + 1)
+db <- dbscan(data_pca, eps = 3, minPts = data_dim + 1)
 print(db)
-# With standardized data:
-fviz_cluster(db, data = data_pca, stand = TRUE,
-             ellipse = TRUE, show.clust.cent = FALSE,
-             geom = "point", ggtheme = theme_classic())
-# With not standardized data:
-fviz_cluster(db, data = data_pca, stand = FALSE,
-             ellipse = TRUE, show.clust.cent = FALSE,
-             geom = "point", ggtheme = theme_classic())
+
+fviz_cluster(db, data = data_pca,
+             geom = "point")
+
+ss <- silhouette(db$cluster, dist(data_pca))
+mean(ss[,3])
+
+# Interpretation
+# MEASURING IMPORTANCE WITH randoForest
+db_copy <- db 
+
+# Create a copy of new_data to keep the original data intact
+new_data_copy <- new_data
+
+# Assign cluster labels to the copy of new_data (do not change original new_data)
+new_data_copy$Cluster <- as.factor(db_copy$cluster)
+
+# Train random forest model to predict clusters based on other features
+rf_model <- randomForest(Cluster ~ ., data = new_data_copy, importance = TRUE, ntree = 200)
+
+
+# Extract feature importance
+importance_rf <- importance(rf_model, type = 1)  # type = 2 gives Mean Decrease in Accuracy
+
+# Print the importance to check
+print(importance_rf)
+
+importance_df <- as.data.frame(importance_rf)  # Convert importance to data frame
+importance_df$Feature <- rownames(importance_df)  # Add feature names as a new column
+
+# Now, importance_df should have 'Feature' and 'MeanDecreaseGini' columns
+colnames(importance_df) <- c("MeanDecreaseAccuracy", "Feature")  # Rename columns for clarity
+
+importance_df <- importance_df[order(importance_df$MeanDecreaseAccuracy, decreasing = TRUE), ]
+
+
+# Define groups of related dummy variables
+variable_groups <- list(
+  "education" = c("education.1", "education.2", "education.3"),
+  "employment" = c("employment.1", "employment.2", "employment.3", "employment.4", "employment.5", "employment.6"),
+  "gender" = c("gender.1", "gender.2"),
+  "employment_type" = c("employment_type.1", "employment_type.2", "employment_type.3", "employment_type.0"),
+  "job_contract" = c("job_contract.1", "job_contract.2", "job_contract.0"),
+  "marital" = c("marital.1", "marital.2", "marital.3", "marital.4")
+)
+# Sum importances for grouped variables
+summed_importance <- importance_df %>%
+  rowwise() %>%
+  mutate(Feature = case_when(
+    Feature %in% variable_groups$education ~ "Education",
+    Feature %in% variable_groups$employment ~ "Employment",
+    Feature %in% variable_groups$gender ~ "Gender",
+    Feature %in% variable_groups$employment_type ~ "Employment_type",
+    Feature %in% variable_groups$job_contract ~ "Job_contract",
+    Feature %in% variable_groups$marital ~ "Marital",
+    TRUE ~ Feature # Keep other variables as their own group
+  )) %>%
+  group_by(Feature) %>%
+  summarise(MeanDecreaseAccuracy = sum(MeanDecreaseAccuracy)) %>%
+  ungroup()
+# Sort importance by 'MeanDecreaseAccuracy'
+summed_importance <- summed_importance[order(summed_importance$MeanDecreaseAccuracy, decreasing = TRUE), ]
+# Plotting feature importance
+feature_mapping <- c(
+  "employment" = "Employment",
+  "employment_type" = "Employment Type",
+  "education" = "Education",
+  "job_contract" = "Job Contract",
+  "X.All_household_consumption_expenses_.monthly.." = "Total Expenses",
+  "marital" = "Marital Status",
+  "Health" = "Health",
+  "X.Housing._water._electricity._gas._and_other_fuels." = "Housing and Utilities",
+  "age" = "Age",
+  "gender" = "Gender",
+  "Transport" = "Transport",
+  "Information_and_communication" = "Communication",
+  "Insurance_and_financial_services" = "Financial Services",
+  "X.Recreation._sports._and_culture." = "Recreation",
+  "X.Alcoholic_beverages._tobacco._and_drugs." = "Alcohol and Tobacco",
+  "Restaurants_and_accommodation_services" = "Hospitality",
+  "X.Food_and_non.alcoholic_beverages." = "Food and Non-Alcoholic Beverages",
+  "X.Furnishings._household_equipment._and_routine_home_maintenance." = "Home Maintenance",
+  "household_size" = "Household Size",
+  "X.Personal_care._social_protection._and_miscellaneous_goods_and_services." = "Personal Care",
+  "Clothing_and_footwear" = "Apparel"
+)
+
+# Rename features in the dataset
+summed_importance <- summed_importance %>%
+  mutate(Feature = recode(Feature, !!!feature_mapping))
+
+# Create the plot with updated feature names
+ggplot(summed_importance, aes(x = reorder(Feature, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Feature Importance for DBSCAN Clusters (Random Forest)",
+    x = "Features",
+    y = "Importance (Mean Decrease in Accuracy)"
+  ) +
+  theme_minimal()
+
+# # Plotting feature importance
+# ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+#   geom_bar(stat = "identity", fill = "steelblue") +
+#   coord_flip() +
+#   labs(title = "Feature Importance for K-means Clusters (Random Forest)",
+#        x = "Features",
+#        y = "Importance (Mean Decrease in Accuracy)") +
+#   theme_minimal()
+
+# Choose the top N important features dynamically
+top_features <- c(
+  "X.All_household_consumption_expenses_.monthly..",
+  "X.Housing._water._electricity._gas._and_other_fuels.",
+  "age",
+  "Health",
+  "X.Alcoholic_beverages._tobacco._and_drugs.",
+  "Transport",
+  "Information_and_communication",
+  "Restaurants_and_accommodation_services",
+  "X.Recreation._sports._and_culture."
+)
+
+# Filter the data to exclude Cluster 0
+filtered_data <- new_data_copy %>%
+  filter(Cluster != 0)
+
+# Select data for the chosen top features and Cluster
+data_for_boxplots <- filtered_data[, c(top_features, "Cluster")]
+
+# Reshape the data into a long format for ggplot (melt the data)
+data_long <- melt(data_for_boxplots, id.vars = "Cluster", variable.name = "Feature", value.name = "Value")
+
+# Rename features for readability
+feature_labels <- c(
+  "X.All_household_consumption_expenses_.monthly.." = "Total expenses",
+  "X.Housing._water._electricity._gas._and_other_fuels." = "Housing, utilities",
+  "age" = "Age",
+  "Health" = "Health",
+  "X.Alcoholic_beverages._tobacco._and_drugs." = "Alcohol, tobacco",
+  "Transport" = "Transport",
+  "Information_and_communication" = "Communication",
+  "Restaurants_and_accommodation_services" = "Hospitality",
+  "X.Recreation._sports._and_culture." = "Recreation"
+)
+
+# Update feature names to readable labels
+data_long$Feature <- factor(data_long$Feature, levels = names(feature_labels), labels = feature_labels)
+
+# Create boxplots for the top features grouped by cluster
+ggplot(data_long, aes(x = Cluster, y = Value, fill = Cluster)) +
+  geom_boxplot() +
+  facet_wrap(~ Feature, scales = "free_y") +  # Separate boxplots for each feature
+  labs(title = "Boxplots of Top Features by DBSCAN Clusters",
+       x = "Cluster",
+       y = "Feature Value") +
+  theme_minimal()
+
+
+# Extract relevant groups from variable_groups
+employment_columns <- variable_groups$employment
+employment_type_columns <- variable_groups$employment_type
+marital_columns <- variable_groups$marital
+education_columns <- variable_groups$education
+gender_columns <- variable_groups$gender
+job_contr_columns <- variable_groups$job_contract
+
+# Ensure Cluster is treated as a factor (if not already)
+new_data_copy$Cluster <- as.factor(new_data_copy$Cluster)
+
+# Function to calculate relative ratios for a group of columns
+calculate_ratios <- function(data, group_columns, cluster_column = "Cluster") {
+  ratios <- data.frame(Cluster = character(),
+                       Variable = character(),
+                       RelativeRatio = numeric())
+  
+  for (cluster in levels(data[[cluster_column]])) {
+    cluster_data <- data[data[[cluster_column]] == cluster, group_columns]
+    category_totals <- colSums(cluster_data, na.rm = TRUE)
+    total <- sum(category_totals)
+    
+    for (var in names(category_totals)) {
+      relative_ratio <- category_totals[var] / total
+      ratios <- rbind(ratios, data.frame(
+        Cluster = cluster,
+        Variable = var,
+        RelativeRatio = relative_ratio
+      ))
+    }
+  }
+  
+  return(ratios)
+}
+
+# Calculate ratios for each group
+employment_ratios <- calculate_ratios(new_data_copy, employment_columns)
+employment_type_ratios <- calculate_ratios(new_data_copy, employment_type_columns)
+marital_ratios <- calculate_ratios(new_data_copy, marital_columns)
+education_ratios <- calculate_ratios(new_data_copy, education_columns)
+gender_ratios <- calculate_ratios(new_data_copy, gender_columns)
+job_contr_ratios <- calculate_ratios(new_data_copy, job_contr_columns)
+# Function to filter out Cluster 0 and add ratio labels on the bars
+plot_ratios_with_labels_stacked_by_cluster <- function(ratios, labels, title) {
+  # Remove Cluster 0
+  ratios <- ratios[ratios$Cluster != 0, ]
+  
+  # Filter out rows where RelativeRatio == 0
+  ratios <- ratios[ratios$RelativeRatio > 0, ]
+  
+  # Ensure Variable has all levels and update labels
+  ratios$Variable <- factor(ratios$Variable, levels = names(labels), labels = labels)
+  
+  # Check if the data contains at least one row to plot
+  if (nrow(ratios) == 0) {
+    stop("No data to plot after filtering. Check the ratios dataset.")
+  }
+  
+  # Plot the stacked bar chart
+  ggplot(ratios, aes(x = Cluster, y = RelativeRatio, fill = Variable)) +
+    geom_bar(stat = "identity", position = "fill") + # Stacked bar chart with proportions
+    geom_text(
+      aes(label = ifelse(RelativeRatio > 0.05, round(RelativeRatio, 2), "")), # Display labels for significant values
+      position = position_fill(vjust = 0.5), 
+      size = 3.5, # Increase text size for better readability
+      color = "black"  # Change text color for better contrast
+    ) +
+    labs(
+      title = title,
+      x = "Cluster",
+      y = "Proportion (Ratio)"
+    ) +
+    theme_minimal() +
+    scale_fill_discrete(name = "Category") + # Update legend to show valid categories
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5), # Center x-axis text
+      legend.position = "right", # Move legend to the right side
+      legend.text = element_text(size = 9), # Adjust legend text size
+      legend.title = element_text(size = 10) # Adjust legend title size
+    )
+}
+
+# Create a mapping for employment variables with their English meanings
+employment_labels <- c(
+  "employment.1" = "Employed",
+  "employment.2" = "Unemployed",
+  "employment.3" = "Retired\npensioner",
+  "employment.4" = "Not working\nhealth",
+  "employment.5" = "Student",
+  "employment.6" = "Homemaker etc."
+)
+
+# Labels for other variables
+education_labels <- c(
+  "education.1" = "Lower", 
+  "education.2" = "Intermediate", 
+  "education.3" = "Higher", 
+  "education.0" = "Not applicable"
+)
+
+gender_labels <- c(
+  "gender.1" = "Male", 
+  "gender.2" = "Female"
+)
+
+employment_type_labels <- c(
+  "employment_type.1" = "Self-emp.\nw/ employees", 
+  "employment_type.2" = "Self-emp.\nno employees", 
+  "employment_type.3" = "Paid employee", 
+  "employment_type.4" = "Unpaid family business worker", 
+  "employment_type.0" = "Not applicable"
+)
+
+job_contract_labels <- c(
+  "job_contract.1" = "Permanent contract", 
+  "job_contract.2" = "Temporary contract", 
+  "job_contract.0" = "Not applicable"
+)
+
+status_in_house_labels <- c(
+  "1" = "Head of household", 
+  "2" = "Spouse/partner", 
+  "3" = "Child/stepchild", 
+  "4" = "Parent/parent-in-law", 
+  "5" = "Other relative", 
+  "6" = "Non-relative"
+)
+
+marital_labels <- c(
+  "marital.1" = "Single", 
+  "marital.2" = "Married", 
+  "marital.3" = "Widowed", 
+  "marital.4" = "Divorced"
+)
+
+# Plot stacked bar charts with updated labels and clusters on x-axis
+plot_employment <- plot_ratios_with_labels_stacked_by_cluster(employment_ratios, 
+                                                              employment_labels, 
+                                                              "Proportions of Employment Categories by Cluster")
+
+plot_employment_type <- plot_ratios_with_labels_stacked_by_cluster(employment_type_ratios, 
+                                                                   employment_type_labels,
+                                                                   "Proportions of Employment Types by Cluster")
+
+plot_marital <- plot_ratios_with_labels_stacked_by_cluster(marital_ratios, 
+                                                           marital_labels,
+                                                           "Proportions of Marital Status by Cluster")
+
+plot_education <- plot_ratios_with_labels_stacked_by_cluster(education_ratios, 
+                                                             education_labels,
+                                                             "Proportions of Education Levels by Cluster")
+
+plot_gender <- plot_ratios_with_labels_stacked_by_cluster(gender_ratios, 
+                                                          gender_labels,
+                                                          "Proportions of Genders by Cluster")
+
+plot_job_contr <- plot_ratios_with_labels_stacked_by_cluster(job_contr_ratios, 
+                                                             job_contract_labels,
+                                                             "Proportions of Job Contract Types by Cluster")
+
+# # Display the plots
+# print(plot_employment)
+# print(plot_employment_type)
+# print(plot_marital)
+# print(plot_education)
+
+# Arrange the plots in a 2x2 grid
+grid.arrange(plot_employment, plot_employment_type, plot_education, plot_job_contr, plot_marital, plot_gender,
+             nrow = 3, ncol = 2)
+
 # ----------------------------------------------------------------------------
 # DBSCAN with original data + sclaed
 
