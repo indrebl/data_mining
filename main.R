@@ -1024,8 +1024,17 @@ print(db)
 fviz_cluster(db, data = data_pca,
              geom = "point")
 
-ss <- silhouette(db$cluster, dist(data_pca))
-mean(ss[,3])
+# Filter out noise points (cluster 0)
+valid_indices <- db$cluster != 0
+filtered_clusters <- db$cluster[valid_indices]
+filtered_data_pca <- data_pca[valid_indices, ]
+
+# Calculate the silhouette score excluding noise points
+ss <- silhouette(filtered_clusters, dist(filtered_data_pca))
+
+# Calculate the mean silhouette score
+mean_ss <- mean(ss[, 3])
+mean_ss
 
 # Interpretation
 # MEASURING IMPORTANCE WITH randoForest
