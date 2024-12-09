@@ -545,7 +545,7 @@ rf_model <- randomForest(Cluster ~ ., data = new_data_copy, importance = TRUE, n
 
 
 # Extract feature importance
-importance_rf <- importance(rf_model, type = 1)  # type = 2 gives Mean Decrease in Accuracy
+importance_rf <- importance(rf_model, type = 1)  # type = 1 gives Mean Decrease in Accuracy
 
 # Print the importance to check
 print(importance_rf)
@@ -1051,7 +1051,7 @@ rf_model <- randomForest(Cluster ~ ., data = new_data_copy, importance = TRUE, n
 
 
 # Extract feature importance
-importance_rf <- importance(rf_model, type = 1)  # type = 2 gives Mean Decrease in Accuracy
+importance_rf <- importance(rf_model, type = 1)  # type = 1 gives Mean Decrease in Accuracy
 
 # Print the importance to check
 print(importance_rf)
